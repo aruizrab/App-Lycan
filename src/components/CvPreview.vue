@@ -1,48 +1,113 @@
 <script setup>
 import { useCvStore } from '../stores/cv'
-import { Mail, Phone, Globe, MapPin, Calendar } from 'lucide-vue-next'
+import { Globe, MapPin, Calendar, Mail, Phone } from 'lucide-vue-next'
 import { computed } from 'vue'
+
+const props = defineProps({
+  atsMode: {
+    type: Boolean,
+    default: false
+  },
+  showPictureInAts: {
+    type: Boolean,
+    default: false
+  },
+  uppercaseName: {
+    type: Boolean,
+    default: true
+  },
+  uppercaseRole: {
+    type: Boolean,
+    default: true
+  },
+  uppercaseHeaders: {
+    type: Boolean,
+    default: true
+  }
+})
 
 const store = useCvStore()
 const cv = computed(() => store.cv)
 
 const getFavicon = (url) => {
+  if (!url) return ''
   try {
-    if (!url) return ''
-    // Ensure url has protocol
-    const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`)
-    return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`
+    const domain = url.startsWith('http') ? new URL(url).hostname : new URL(`https://${url}`).hostname
+    return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
   } catch (e) {
     return ''
   }
-}
-
-const getIcon = (contact) => {
-  if (contact.type === 'email') return Mail
-  if (contact.type === 'phone') return Phone
-  return null // For URL we use favicon img
 }
 
 const formatSkills = (content) => {
   if (!content) return []
   return content.split(',').map(s => s.trim()).filter(s => s)
 }
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const [year, month] = dateStr.split('-')
+  return `${month}/${year}`
+}
+
+const formatPeriod = (item) => {
+  if (item.dateRange) return item.dateRange // Fallback for old data
+  
+  const start = formatDate(item.startDate)
+  const end = item.isCurrent ? 'Present' : formatDate(item.endDate)
+  
+  if (!start && !end) return ''
+  if (start && !end) return start
+  if (!start && end) return end
+  return `${start} - ${end}`
+}
+
+const hasContent = (section) => {
+  if (!section.visible) return false
+  if (section.content) return true // Legacy support
+  if (!section.items || section.items.length === 0) return false
+  
+  // Check if any item has actual content
+  return section.items.some(item => {
+    if (section.type === 'skills') return item.content && item.content.trim().length > 0
+    if (section.type === 'languages') return item.language && item.language.trim().length > 0
+    return item.title && item.title.trim().length > 0
+  })
+}
 </script>
 
 <template>
-  <div class="a4-page bg-white shadow-lg mx-auto text-gray-800 text-sm leading-relaxed">
+  <div class="a4-page bg-white shadow-lg mx-auto text-gray-800 text-sm leading-relaxed relative">
+    <div v-if="atsMode" class="absolute top-2 right-2 bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded print:hidden border border-green-200">
+      ATS MODE ACTIVE
+    </div>
+
     <!-- Header -->
     <header class="flex gap-6 items-start border-b-2 border-gray-800 pb-6 mb-6">
-      <img v-if="cv.personalInfo.picture" :src="cv.personalInfo.picture" class="w-32 h-32 object-cover rounded-full border-2 border-gray-200" />
+      <img v-if="cv.personalInfo.picture && (!atsMode || showPictureInAts)" :src="cv.personalInfo.picture" class="w-32 h-32 object-cover rounded-full border-2 border-gray-200" />
       <div class="flex-1">
-        <h1 class="text-4xl font-bold text-gray-900 uppercase tracking-wide">{{ cv.personalInfo.name }}</h1>
-        <p class="text-xl text-gray-600 mt-1 font-medium">{{ cv.personalInfo.role }}</p>
+        <h1 class="text-4xl font-bold text-gray-900 tracking-wide" :class="{ 'uppercase': uppercaseName }">{{ cv.personalInfo.name }}</h1>
+        <p class="text-xl text-gray-600 mt-1 font-medium" :class="{ 'uppercase': uppercaseRole }">{{ cv.personalInfo.role }}</p>
         
-        <div class="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
-          <div v-for="contact in cv.personalInfo.contact" :key="contact.id" class="flex items-center gap-1.5">
-            <component :is="getIcon(contact)" v-if="getIcon(contact)" :size="16" />
-            <img v-else-if="contact.value" :src="getFavicon(contact.value)" class="w-4 h-4" />
+        <div class="mt-4 text-sm text-gray-600" :class="atsMode ? 'space-y-1' : 'flex flex-wrap gap-4'">
+          <div v-for="contact in cv.personalInfo.contact" :key="contact.id" :class="atsMode ? '' : 'flex items-center gap-1.5'">
+            <span v-if="atsMode" class="font-bold text-gray-700">{{ contact.label || contact.type }}: </span>
             
+            <template v-else>
+              <Mail v-if="contact.type === 'email'" :size="16" />
+              <Phone v-else-if="contact.type === 'phone'" :size="16" />
+              <template v-else-if="contact.type === 'url'">
+                 <img 
+                   v-if="getFavicon(contact.value)"
+                   :src="getFavicon(contact.value)" 
+                   class="w-4 h-4" 
+                   alt="link"
+                 />
+                 <Globe v-else :size="16" />
+              </template>
+              <Globe v-else :size="16" />
+            </template>
+
             <a v-if="contact.type === 'email'" :href="`mailto:${contact.value}`" class="hover:underline">{{ contact.value }}</a>
             <a v-else-if="contact.type === 'url'" :href="contact.value" target="_blank" class="hover:underline">{{ contact.value.replace(/^https?:\/\//, '') }}</a>
             <span v-else>{{ contact.value }}</span>
@@ -52,40 +117,79 @@ const formatSkills = (content) => {
     </header>
 
     <!-- About Me -->
-    <section v-if="cv.personalInfo.aboutMe" class="mb-6">
-      <h2 class="text-lg font-bold uppercase border-b border-gray-300 mb-3 pb-1">About Me</h2>
-      <p class="whitespace-pre-line text-gray-700">{{ cv.personalInfo.aboutMe }}</p>
+    <section v-if="cv.personalInfo.aboutMe && cv.personalInfo.aboutMe.replace(/<[^>]*>/g, '').trim()" class="mb-6">
+      <h2 class="text-lg font-bold border-b border-gray-300 mb-3 pb-1" :class="{ 'uppercase': uppercaseHeaders }">{{ cv.personalInfo.aboutMeTitle || 'About Me' }}</h2>
+      <div class="rich-text text-gray-700" v-html="cv.personalInfo.aboutMe"></div>
     </section>
 
     <!-- Dynamic Sections -->
     <div v-for="section in cv.sections" :key="section.id">
-      <section v-if="section.visible && (section.items.length > 0 || section.content)" class="mb-6">
-        <h2 class="text-lg font-bold uppercase border-b border-gray-300 mb-3 pb-1">{{ section.title }}</h2>
+      <section v-if="hasContent(section)" class="mb-6">
+        <h2 class="text-lg font-bold border-b border-gray-300 mb-3 pb-1" :class="{ 'uppercase': uppercaseHeaders }">{{ section.title }}</h2>
         
         <!-- Skills -->
-        <div v-if="section.type === 'skills'" class="flex flex-wrap gap-2">
-          <span v-for="skill in formatSkills(section.content)" :key="skill" class="bg-gray-200 text-gray-800 px-2 py-1 rounded text-xs font-semibold">
-            {{ skill }}
-          </span>
+        <div v-if="section.type === 'skills'" class="space-y-3">
+          <div v-for="item in section.items" :key="item.id">
+            <h3 v-if="item.title" class="font-semibold text-gray-700 mb-1">{{ item.title }}</h3>
+            <div v-if="atsMode" class="text-gray-800">
+              {{ formatSkills(item.content).join(', ') }}
+            </div>
+            <div v-else class="flex flex-wrap gap-2">
+              <span v-for="skill in formatSkills(item.content)" :key="skill" class="bg-gray-200 text-gray-800 px-2 py-1 rounded text-xs font-semibold">
+                {{ skill }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Languages -->
+        <div v-else-if="section.type === 'languages'" :class="atsMode ? 'space-y-1' : 'grid grid-cols-2 gap-4'">
+          <div v-for="item in section.items" :key="item.id" class="flex justify-between items-center border-b border-gray-100 pb-1">
+            <span class="font-semibold text-gray-800">{{ item.language }}</span>
+            <span class="text-gray-600 text-sm italic">{{ item.level }}</span>
+          </div>
         </div>
 
         <!-- List Items -->
         <div v-else class="space-y-4">
           <div v-for="item in section.items" :key="item.id">
             <div class="flex justify-between items-baseline">
-              <h3 class="font-bold text-base">{{ item.title }}</h3>
+              <h3 class="font-bold text-base">
+                <a v-if="item.link" :href="item.link" target="_blank" class="hover:underline flex items-center gap-1 text-blue-700">
+                  {{ item.title }} <Globe v-if="!atsMode" :size="12" />
+                </a>
+                <span v-else>{{ item.title }}</span>
+              </h3>
               <div class="text-xs text-gray-500 font-medium whitespace-nowrap flex items-center gap-1">
-                <Calendar v-if="item.dateRange" :size="12" />
-                {{ item.dateRange }} <span v-if="item.isCurrent">(Current)</span>
+                <Calendar v-if="!atsMode && formatPeriod(item)" :size="12" />
+                {{ formatPeriod(item) }}
               </div>
             </div>
             
-            <div v-if="item.subtitle || item.location" class="flex justify-between text-gray-600 text-xs mb-1 italic">
-              <span>{{ item.subtitle }}</span>
-              <span v-if="item.location" class="flex items-center gap-1"><MapPin :size="12" /> {{ item.location }}</span>
+            <div v-if="item.subtitle || item.location" :class="atsMode ? 'text-gray-600 text-xs mb-1 italic' : 'flex justify-between text-gray-600 text-xs mb-1 italic'">
+              <span v-if="atsMode">
+                {{ item.subtitle }}<span v-if="item.subtitle && item.location"> | </span>{{ item.location }}
+              </span>
+              <template v-else>
+                <span>{{ item.subtitle }}</span>
+                <span v-if="item.location" class="flex items-center gap-1"><MapPin :size="12" /> {{ item.location }}</span>
+              </template>
             </div>
             
-            <p v-if="item.description" class="whitespace-pre-line text-gray-700 mt-1">{{ item.description }}</p>
+            <div v-if="item.description" class="rich-text text-gray-700 mt-1" v-html="item.description"></div>
+
+            <!-- Project Skills -->
+            <div v-if="section.type === 'projects' && item.skills" class="mt-2 flex items-center flex-wrap gap-2">
+               <span v-if="item.skillsLabel" class="text-xs font-bold text-gray-700">{{ item.skillsLabel }}:</span>
+               <div v-if="atsMode" class="text-xs text-gray-800">
+                  {{ formatSkills(item.skills).join(', ') }}
+               </div>
+               <div v-else class="flex flex-wrap gap-1">
+                  <span v-for="skill in formatSkills(item.skills)" :key="skill" class="bg-gray-200 text-gray-800 px-2 py-0.5 rounded text-xs font-semibold">
+                    {{ skill }}
+                  </span>
+               </div>
+            </div>
           </div>
         </div>
       </section>
@@ -105,10 +209,28 @@ const formatSkills = (content) => {
 @media print {
   .a4-page {
     margin: 0;
+    padding: 0;
     box-shadow: none;
     width: 100%;
     min-height: auto;
-    padding: 0;
   }
+}
+
+/* Rich Text Styles */
+:deep(.rich-text ul) {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin-bottom: 0.5em;
+}
+:deep(.rich-text ol) {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin-bottom: 0.5em;
+}
+:deep(.rich-text p) {
+  margin-bottom: 0.5em;
+}
+:deep(.rich-text p:last-child) {
+  margin-bottom: 0;
 }
 </style>
