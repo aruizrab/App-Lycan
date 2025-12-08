@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
+import { useCvMetaStore } from './cvMeta'
 
 export const useCvStore = defineStore('cv', () => {
+  const metaStore = useCvMetaStore()
 
   const getNewCvTemplate = () => ({
     personalInfo: {
@@ -113,6 +115,65 @@ export const useCvStore = defineStore('cv', () => {
     return found ? found.data : null
   })
 
+  const currentCvId = computed(() => {
+    if (!currentCvName.value) return null
+    const found = cvs.value.find(c => c.name === currentCvName.value)
+    return found ? found.id : null
+  })
+
+  // Undo/Redo History
+  const saveSnapshot = () => {
+    if (cv.value && currentCvId.value) {
+      metaStore.saveSnapshot(currentCvId.value, cv.value)
+    }
+  }
+
+  const undo = () => {
+    if (!currentCvId.value) return
+    const previous = metaStore.getUndoState(currentCvId.value)
+    if (previous) {
+      metaStore.pushToFuture(currentCvId.value, cv.value)
+
+      // Apply previous state
+      const found = cvs.value.find(c => c.name === currentCvName.value)
+      if (found) {
+        found.data = previous
+      }
+    }
+  }
+
+  const redo = () => {
+    if (!currentCvId.value) return
+    const next = metaStore.getRedoState(currentCvId.value)
+    if (next) {
+      metaStore.pushToPast(currentCvId.value, cv.value)
+
+      // Apply next state
+      const found = cvs.value.find(c => c.name === currentCvName.value)
+      if (found) {
+        found.data = next
+      }
+    }
+  }
+
+  const applyAiChanges = (newCvData) => {
+    saveSnapshot()
+    const found = cvs.value.find(c => c.name === currentCvName.value)
+    if (found) {
+      found.data = newCvData
+    }
+  }
+
+  const canUndo = computed(() => {
+    if (!currentCvId.value) return false
+    return metaStore.hasUndo(currentCvId.value)
+  })
+
+  const canRedo = computed(() => {
+    if (!currentCvId.value) return false
+    return metaStore.hasRedo(currentCvId.value)
+  })
+
   // Persistence
   watch(cvs, (newVal) => {
     localStorage.setItem('cvs-collection', JSON.stringify(newVal))
@@ -144,6 +205,8 @@ export const useCvStore = defineStore('cv', () => {
   const deleteCv = (name) => {
     const index = cvs.value.findIndex(c => c.name === name)
     if (index !== -1) {
+      const id = cvs.value[index].id
+      metaStore.deleteMeta(id)
       cvs.value.splice(index, 1)
     }
   }
@@ -222,6 +285,7 @@ export const useCvStore = defineStore('cv', () => {
   // Helper methods for the form (operating on current CV)
   const addContactField = () => {
     if (cv.value) {
+      saveSnapshot()
       cv.value.personalInfo.contact.push({
         id: Date.now().toString(),
         type: 'url',
@@ -234,12 +298,14 @@ export const useCvStore = defineStore('cv', () => {
 
   const removeContactField = (index) => {
     if (cv.value) {
+      saveSnapshot()
       cv.value.personalInfo.contact.splice(index, 1)
     }
   }
 
   const addSectionItem = (sectionId) => {
     if (!cv.value) return
+    saveSnapshot()
     const section = cv.value.sections.find(s => s.id === sectionId)
     if (section) {
       if (section.type === 'skills') {
@@ -274,6 +340,7 @@ export const useCvStore = defineStore('cv', () => {
 
   const removeSectionItem = (sectionId, index) => {
     if (!cv.value) return
+    saveSnapshot()
     const section = cv.value.sections.find(s => s.id === sectionId)
     if (section) {
       section.items.splice(index, 1)
@@ -294,6 +361,12 @@ export const useCvStore = defineStore('cv', () => {
     addContactField,
     removeContactField,
     addSectionItem,
-    removeSectionItem
+    removeSectionItem,
+    undo,
+    redo,
+    applyAiChanges,
+    currentCvId,
+    canUndo,
+    canRedo
   }
 })

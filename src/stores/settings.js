@@ -8,7 +8,10 @@ const defaultSettings = () => ({
     showPictureInAts: false,
     uppercaseName: true,
     uppercaseRole: true,
-    uppercaseHeaders: true
+    uppercaseHeaders: true,
+    openRouterKey: '',
+    openRouterModel: 'openai/gpt-3.5-turbo',
+    customModels: []
 })
 
 export const useSettingsStore = defineStore('settings', () => {
