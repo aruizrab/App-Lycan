@@ -9,6 +9,7 @@ const defaultSettings = () => ({
     uppercaseName: true,
     uppercaseRole: true,
     uppercaseHeaders: true,
+    uppercaseCoverLetterTitle: true,
     openRouterKey: '',
     openRouterModel: 'openai/gpt-3.5-turbo',
     customModels: []

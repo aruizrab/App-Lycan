@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Dashboard from '../views/Dashboard.vue'
-import CvEditor from '../views/CvEditor.vue'
+import DocumentEditor from '../views/DocumentEditor.vue'
 
 const routes = [
     {
@@ -11,7 +11,14 @@ const routes = [
     {
         path: '/edit/:name',
         name: 'Editor',
-        component: CvEditor
+        component: DocumentEditor,
+        props: { documentType: 'cv' }
+    },
+    {
+        path: '/cover-letter/:name',
+        name: 'CoverLetterEditor',
+        component: DocumentEditor,
+        props: { documentType: 'cover-letter' }
     }
 ]
 

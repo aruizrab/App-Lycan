@@ -1,21 +1,38 @@
 <script setup>
 import CvForm from '../components/CvForm.vue'
 import CvPreview from '../components/CvPreview.vue'
+import CoverLetterForm from '../components/CoverLetterForm.vue'
+import CoverLetterPreview from '../components/CoverLetterPreview.vue'
 import { useCvStore } from '../stores/cv'
+import { useCoverLetterStore } from '../stores/coverLetter'
 import { useCvMetaStore } from '../stores/cvMeta'
-import { Printer, Moon, Sun, ArrowLeft, Save, FileText, Settings, Sparkles, Send, RotateCcw, RotateCw, X, MessageSquare, Plus, Trash2, ChevronLeft, Download, Edit } from 'lucide-vue-next'
+import { Printer, Moon, Sun, ArrowLeft, FileText, Settings, Sparkles, Send, RotateCcw, RotateCw, X, MessageSquare, Plus, Trash2, ChevronLeft, Download, Edit, Mail } from 'lucide-vue-next'
 import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
 import { storeToRefs } from 'pinia'
 import { performAiAction } from '../services/ai'
 
-const store = useCvStore()
+const props = defineProps({
+  documentType: {
+    type: String,
+    required: true,
+    validator: (value) => ['cv', 'cover-letter'].includes(value)
+  }
+})
+
+const cvStore = useCvStore()
+const clStore = useCoverLetterStore()
 const metaStore = useCvMetaStore()
 const route = useRoute()
 const router = useRouter()
 
-const cvName = ref('')
+const isCv = computed(() => props.documentType === 'cv')
+const store = computed(() => isCv.value ? cvStore : clStore)
+const currentDocument = computed(() => isCv.value ? cvStore.cv : clStore.coverLetter)
+const currentName = computed(() => isCv.value ? route.params.name : route.params.name)
+
+const docName = ref('')
 const nameError = ref('')
 const showSettings = ref(false)
 const showAiPanel = ref(false)
@@ -23,11 +40,12 @@ const aiPrompt = ref('')
 const isAiLoading = ref(false)
 const systemInstructions = ref('')
 const chatContainer = ref(null)
-const aiPanelView = ref('chat') // 'chat', 'list', or 'settings'
+const aiPanelView = ref('chat')
 
 const settingsStore = useSettingsStore()
-const { atsMode, showPictureInAts, uppercaseName, uppercaseRole, uppercaseHeaders, openRouterKey, openRouterModel, customModels } = storeToRefs(settingsStore)
-const { canUndo, canRedo } = storeToRefs(store)
+const { atsMode, showPictureInAts, uppercaseName, uppercaseRole, uppercaseHeaders, uppercaseCoverLetterTitle, openRouterKey, openRouterModel, customModels } = storeToRefs(settingsStore)
+const canUndo = computed(() => isCv.value ? cvStore.canUndo : false)
+const canRedo = computed(() => isCv.value ? cvStore.canRedo : false)
 
 const defaultModels = [
   'openai/gpt-3.5-turbo',
@@ -52,12 +70,12 @@ const addCustomModel = () => {
   }
 }
 
-// AI Chat Logic
+// AI Chat Logic (only for CV)
 const currentChatId = ref(null)
 
 const chats = computed(() => {
-  if (!store.currentCvId) return []
-  return metaStore.getChats(store.currentCvId)
+  if (!isCv.value || !cvStore.currentCvId) return []
+  return metaStore.getChats(cvStore.currentCvId)
 })
 
 const currentChat = computed(() => {
@@ -70,8 +88,8 @@ const aiMessages = computed(() => {
 })
 
 const createNewChat = () => {
-  if (!store.currentCvId) return
-  const chat = metaStore.createChat(store.currentCvId, `Chat ${chats.value.length + 1}`)
+  if (!isCv.value || !cvStore.currentCvId) return
+  const chat = metaStore.createChat(cvStore.currentCvId, `Chat ${chats.value.length + 1}`)
   currentChatId.value = chat.id
   aiPanelView.value = 'chat'
 }
@@ -82,8 +100,8 @@ const selectChat = (chatId) => {
 }
 
 const deleteChat = (chatId) => {
-  if (!store.currentCvId) return
-  metaStore.deleteChat(store.currentCvId, chatId)
+  if (!isCv.value || !cvStore.currentCvId) return
+  metaStore.deleteChat(cvStore.currentCvId, chatId)
   if (currentChatId.value === chatId) {
     currentChatId.value = null
     if (chats.value.length > 0) {
@@ -95,6 +113,7 @@ const deleteChat = (chatId) => {
 }
 
 const toggleAiPanel = () => {
+  if (!isCv.value) return
   showAiPanel.value = !showAiPanel.value
   if (showAiPanel.value && !currentChatId.value) {
     if (chats.value.length > 0) {
@@ -106,10 +125,10 @@ const toggleAiPanel = () => {
 }
 
 const handleAiSubmit = async () => {
-    if (!aiPrompt.value.trim() || isAiLoading.value || !currentChatId.value) return
+    if (!isCv.value || !aiPrompt.value.trim() || isAiLoading.value || !currentChatId.value) return
     
     const prompt = aiPrompt.value
-    metaStore.addMessage(store.currentCvId, currentChatId.value, { role: 'user', content: prompt })
+    metaStore.addMessage(cvStore.currentCvId, currentChatId.value, { role: 'user', content: prompt })
     aiPrompt.value = ''
     isAiLoading.value = true
 
@@ -117,15 +136,15 @@ const handleAiSubmit = async () => {
         const result = await performAiAction(
             openRouterKey.value,
             openRouterModel.value,
-            store.cv,
+            cvStore.cv,
             prompt,
             systemInstructions.value
         )
         
-        store.applyAiChanges(result.cvData)
-        metaStore.addMessage(store.currentCvId, currentChatId.value, { role: 'assistant', content: result.message })
+        cvStore.applyAiChanges(result.cvData)
+        metaStore.addMessage(cvStore.currentCvId, currentChatId.value, { role: 'assistant', content: result.message })
     } catch (e) {
-        metaStore.addMessage(store.currentCvId, currentChatId.value, { role: 'error', content: e.message })
+        metaStore.addMessage(cvStore.currentCvId, currentChatId.value, { role: 'error', content: e.message })
     } finally {
         isAiLoading.value = false
     }
@@ -190,20 +209,30 @@ const stopResizeForm = () => {
 // Initialize
 onMounted(async () => {
   const name = decodeURIComponent(route.params.name)
-  store.setCurrentCv(name)
   
-  // Verify it exists
-  if (!store.cv) {
-    router.push('/')
-    return
+  if (isCv.value) {
+    cvStore.setCurrentCv(name)
+    if (!cvStore.cv) {
+      router.push('/')
+      return
+    }
+  } else {
+    clStore.setCurrentCoverLetter(name)
+    if (!clStore.coverLetter) {
+      router.push('/')
+      return
+    }
   }
-  cvName.value = name
+  
+  docName.value = name
 
-  try {
-    const res = await fetch('/ai-instructions.md')
-    systemInstructions.value = await res.text()
-  } catch (e) {
-    console.error('Failed to load AI instructions', e)
+  if (isCv.value) {
+    try {
+      const res = await fetch('/ai-instructions.md')
+      systemInstructions.value = await res.text()
+    } catch (e) {
+      console.error('Failed to load AI instructions', e)
+    }
   }
 })
 
@@ -219,28 +248,32 @@ watch(aiMessages, () => {
 // Handle name change
 const updateName = () => {
   const oldName = decodeURIComponent(route.params.name)
-  const newName = cvName.value.trim()
+  const newName = docName.value.trim()
   
   if (!newName) {
-    cvName.value = oldName
+    docName.value = oldName
     return
   }
 
   if (newName === oldName) return
 
   try {
-    store.updateCvName(oldName, newName)
-    store.setCurrentCv(newName)
-    router.replace(`/edit/${encodeURIComponent(newName)}`)
+    if (isCv.value) {
+      cvStore.updateCvName(oldName, newName)
+      cvStore.setCurrentCv(newName)
+      router.replace(`/edit/${encodeURIComponent(newName)}`)
+    } else {
+      clStore.updateCoverLetterName(oldName, newName)
+      clStore.setCurrentCoverLetter(newName)
+      router.replace(`/cover-letter/${encodeURIComponent(newName)}`)
+    }
     nameError.value = ''
   } catch (e) {
     nameError.value = e.message
-    // Revert name after a delay or keep it to let user fix?
-    // Let's keep it but show error
   }
 }
 
-// Theme Logic (duplicated from App.vue for now, ideally use a composable)
+// Theme Logic
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
 const toggleTheme = () => {
@@ -255,13 +288,13 @@ const toggleTheme = () => {
 }
 
 const exportJson = () => {
-  if (!store.cv) return
-  const dataStr = JSON.stringify({ name: cvName.value, data: store.cv }, null, 2)
+  if (!currentDocument.value) return
+  const dataStr = JSON.stringify({ name: docName.value, data: currentDocument.value }, null, 2)
   const blob = new Blob([dataStr], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${cvName.value.replace(/\s+/g, '_')}.json`
+  a.download = `${docName.value.replace(/\s+/g, '_')}.json`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
@@ -270,9 +303,8 @@ const exportJson = () => {
 
 const print = () => {
   const originalTitle = document.title
-  document.title = cvName.value || 'CV'
+  document.title = docName.value || (isCv.value ? 'CV' : 'Cover Letter')
   window.print()
-  // Restore title after a delay to ensure the print dialog picks up the new title
   setTimeout(() => {
     document.title = originalTitle
   }, 100)
@@ -280,6 +312,14 @@ const print = () => {
 
 const goBack = () => {
   router.push('/')
+}
+
+const undo = () => {
+  if (isCv.value) cvStore.undo()
+}
+
+const redo = () => {
+  if (isCv.value) cvStore.redo()
 }
 </script>
 
@@ -292,9 +332,9 @@ const goBack = () => {
           <ArrowLeft :size="24" />
         </button>
         <div class="relative grid max-w-full">
-          <span class="text-xl font-bold px-2 py-1 invisible whitespace-pre col-start-1 row-start-1 overflow-hidden">{{ cvName || ' ' }}</span>
+          <span class="text-xl font-bold px-2 py-1 invisible whitespace-pre col-start-1 row-start-1 overflow-hidden">{{ docName || ' ' }}</span>
           <input 
-            v-model="cvName" 
+            v-model="docName" 
             @blur="updateName"
             @keyup.enter="updateName"
             class="text-xl font-bold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 outline-none px-2 py-1 transition-colors col-start-1 row-start-1 w-full min-w-[50px]"
@@ -306,14 +346,14 @@ const goBack = () => {
         </div>
 
         <!-- Separator -->
-        <div class="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-2 hidden sm:block"></div>
+        <div v-if="isCv" class="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-2 hidden sm:block"></div>
 
-        <!-- Undo/Redo -->
-        <div class="flex items-center border dark:border-gray-700 rounded-full bg-gray-50 dark:bg-gray-800/50 overflow-hidden hidden sm:flex">
-           <button @click="store.undo()" :disabled="!canUndo" class="px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-r dark:border-gray-700" title="Undo">
+        <!-- Undo/Redo (CV only) -->
+        <div v-if="isCv" class="flex items-center border dark:border-gray-700 rounded-full bg-gray-50 dark:bg-gray-800/50 overflow-hidden hidden sm:flex">
+           <button @click="undo" :disabled="!canUndo" class="px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-r dark:border-gray-700" title="Undo">
              <RotateCcw :size="16" />
            </button>
-           <button @click="store.redo()" :disabled="!canRedo" class="px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Redo">
+           <button @click="redo" :disabled="!canRedo" class="px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Redo">
              <RotateCw :size="16" />
            </button>
         </div>
@@ -334,6 +374,7 @@ const goBack = () => {
             </button>
 
             <button 
+              v-if="isCv"
               @click="toggleAiPanel" 
               class="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border"
               :class="showAiPanel ? 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900 dark:text-purple-100 dark:border-purple-800' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600'"
@@ -344,6 +385,7 @@ const goBack = () => {
             </button>
 
             <button 
+              v-if="isCv"
               @click="atsMode = !atsMode" 
               class="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border"
               :class="atsMode ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-100 dark:border-green-800' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600'"
@@ -379,7 +421,7 @@ const goBack = () => {
                 <div v-if="showSettings" class="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border dark:border-gray-700 p-4 z-50">
                     <h3 class="font-bold mb-3 text-gray-900 dark:text-white">View Settings</h3>
                     <div class="space-y-3 mb-4 border-b dark:border-gray-700 pb-4">
-                      <label class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                      <label v-if="isCv" class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
                         <span>Uppercase Name</span>
                         <div class="relative inline-flex h-6 w-11 items-center">
                           <input type="checkbox" v-model="uppercaseName" class="peer sr-only" role="switch" />
@@ -387,7 +429,7 @@ const goBack = () => {
                           <span class="pointer-events-none absolute left-0.5 top-0.5 block h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span>
                         </div>
                       </label>
-                      <label class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                      <label v-if="isCv" class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
                         <span>Uppercase Role</span>
                         <div class="relative inline-flex h-6 w-11 items-center">
                           <input type="checkbox" v-model="uppercaseRole" class="peer sr-only" role="switch" />
@@ -395,7 +437,7 @@ const goBack = () => {
                           <span class="pointer-events-none absolute left-0.5 top-0.5 block h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span>
                         </div>
                       </label>
-                      <label class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                      <label v-if="isCv" class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
                         <span>Uppercase Section Headers</span>
                         <div class="relative inline-flex h-6 w-11 items-center">
                           <input type="checkbox" v-model="uppercaseHeaders" class="peer sr-only" role="switch" />
@@ -403,7 +445,15 @@ const goBack = () => {
                           <span class="pointer-events-none absolute left-0.5 top-0.5 block h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span>
                         </div>
                       </label>
-                      <label class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 select-none" :class="{ 'opacity-50 cursor-not-allowed': !atsMode, 'cursor-pointer': atsMode }">
+                      <label v-if="!isCv" class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                        <span>Uppercase Title</span>
+                        <div class="relative inline-flex h-6 w-11 items-center">
+                          <input type="checkbox" v-model="uppercaseCoverLetterTitle" class="peer sr-only" role="switch" />
+                          <span class="pointer-events-none block h-6 w-11 rounded-full bg-gray-300 dark:bg-gray-700 transition-colors peer-checked:bg-blue-600 dark:peer-checked:bg-blue-500 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-400 dark:peer-focus-visible:ring-blue-500"></span>
+                          <span class="pointer-events-none absolute left-0.5 top-0.5 block h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span>
+                        </div>
+                      </label>
+                      <label v-if="isCv" class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 select-none" :class="{ 'opacity-50 cursor-not-allowed': !atsMode, 'cursor-pointer': atsMode }">
                         <span>Show Picture in ATS Mode</span>
                         <div class="relative inline-flex h-6 w-11 items-center">
                           <input type="checkbox" v-model="showPictureInAts" :disabled="!atsMode" class="peer sr-only" role="switch" />
@@ -418,12 +468,13 @@ const goBack = () => {
       </div>
     </header>
     
-    <main v-if="store.cv" class="flex-1 flex flex-col md:flex-row overflow-hidden relative print:overflow-visible print:h-auto print:block">
+    <main v-if="currentDocument" class="flex-1 flex flex-col md:flex-row overflow-hidden relative print:overflow-visible print:h-auto print:block">
       <div v-if="showFormPanel" 
            class="bg-gray-50 dark:bg-gray-900 border-r dark:border-gray-700 print:hidden h-[calc(100vh-64px)] transition-colors duration-300 relative z-10 flex-shrink-0 flex"
            :style="{ width: formPanelWidth + 'px' }">
         <div class="flex-1 overflow-y-auto p-4 min-w-0">
-           <CvForm />
+           <CvForm v-if="isCv" />
+           <CoverLetterForm v-else />
         </div>
         <!-- Resize Handle -->
         <div class="hidden md:block w-1.5 cursor-ew-resize hover:bg-blue-500/50 transition-colors z-20 flex-shrink-0"
@@ -433,17 +484,22 @@ const goBack = () => {
       <div class="flex-1 bg-gray-200 dark:bg-gray-950 p-8 overflow-y-auto h-[calc(100vh-64px)] print:h-auto print:w-full print:p-0 print:overflow-visible print:bg-white transition-colors duration-300">
         <div class="print:w-full flex justify-center">
           <CvPreview 
+            v-if="isCv"
             :ats-mode="atsMode" 
             :show-picture-in-ats="showPictureInAts"
             :uppercase-name="uppercaseName"
             :uppercase-role="uppercaseRole"
             :uppercase-headers="uppercaseHeaders"
           />
+          <CoverLetterPreview 
+            v-else
+            :uppercase-title="uppercaseCoverLetterTitle"
+          />
         </div>
       </div>
 
-      <!-- AI Panel -->
-      <div v-if="showAiPanel" 
+      <!-- AI Panel (CV only) -->
+      <div v-if="isCv && showAiPanel" 
            class="w-full md:w-[var(--panel-width)] bg-white dark:bg-gray-800 border-l dark:border-gray-700 flex flex-col z-20 shadow-xl relative"
            :style="{ '--panel-width': aiPanelWidth + 'px' }">
           <!-- Resize Handle -->
@@ -562,7 +618,7 @@ const goBack = () => {
       </div>
     </main>
     <div v-else class="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
-      Loading CV...
+      Loading {{ isCv ? 'CV' : 'Cover Letter' }}...
     </div>
   </div>
 </template>
