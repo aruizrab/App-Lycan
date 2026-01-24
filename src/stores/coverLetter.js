@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
+import { useWorkspaceStore } from './workspace'
 
 export const useCoverLetterStore = defineStore('coverLetter', () => {
+    const workspaceStore = useWorkspaceStore()
 
     const getNewCoverLetterTemplate = () => ({
         applicantAddress: '',
@@ -14,50 +16,55 @@ export const useCoverLetterStore = defineStore('coverLetter', () => {
         signatureName: ''
     })
 
-    // Initialize State
-    const savedCoverLetters = localStorage.getItem('cover-letters-collection')
-    let initialCoverLetters = []
-
-    if (savedCoverLetters) {
-        initialCoverLetters = JSON.parse(savedCoverLetters)
-    }
-
-    const coverLetters = ref(initialCoverLetters)
     const currentCoverLetterName = ref(null)
+
+    // Computed to get current workspace's cover letters
+    const coverLetters = computed(() => {
+        return workspaceStore.getCurrentCoverLetters
+    })
 
     // Computed current Cover Letter data
     const coverLetter = computed(() => {
         if (!currentCoverLetterName.value) return null
-        const found = coverLetters.value.find(c => c.name === currentCoverLetterName.value)
-        return found ? found.data : null
+        const clDoc = coverLetters.value[currentCoverLetterName.value]
+        return clDoc ? clDoc.data : null
     })
 
-    // Persistence
-    watch(coverLetters, (newVal) => {
-        localStorage.setItem('cover-letters-collection', JSON.stringify(newVal))
-    }, { deep: true })
-
     const isNameTaken = (name) => {
-        return coverLetters.value.some(c => c.name === name)
+        return name in coverLetters.value
     }
 
     const createCoverLetter = (name) => {
+        const currentWs = workspaceStore.currentWorkspace
+        if (!currentWs) {
+            throw new Error('No workspace selected')
+        }
+
         if (isNameTaken(name)) {
             throw new Error('Name already exists')
         }
-        coverLetters.value.push({
+
+        const newCl = {
             id: crypto.randomUUID(),
-            name,
             lastModified: Date.now(),
             data: getNewCoverLetterTemplate()
-        })
+        }
+
+        workspaceStore.workspaces[currentWs].coverLetters[name] = newCl
+        workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+        workspaceStore.save()
         currentCoverLetterName.value = name
     }
 
     const deleteCoverLetter = (name) => {
-        const index = coverLetters.value.findIndex(c => c.name === name)
-        if (index !== -1) {
-            coverLetters.value.splice(index, 1)
+        const currentWs = workspaceStore.currentWorkspace
+        if (!currentWs || !workspaceStore.workspaces[currentWs]) return
+
+        if (workspaceStore.workspaces[currentWs].coverLetters[name]) {
+            delete workspaceStore.workspaces[currentWs].coverLetters[name]
+            workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+            workspaceStore.save()
+
             if (currentCoverLetterName.value === name) {
                 currentCoverLetterName.value = null
             }
@@ -65,21 +72,26 @@ export const useCoverLetterStore = defineStore('coverLetter', () => {
     }
 
     const duplicateCoverLetter = (name) => {
-        const original = coverLetters.value.find(c => c.name === name)
+        const currentWs = workspaceStore.currentWorkspace
+        if (!currentWs) return
+
+        const original = coverLetters.value[name]
         if (original) {
-            let newName = `${original.name} (Copy)`
+            let newName = `${name} (Copy)`
             let counter = 1
             while (isNameTaken(newName)) {
                 counter++
-                newName = `${original.name} (Copy ${counter})`
+                newName = `${name} (Copy ${counter})`
             }
 
             const newId = crypto.randomUUID()
             const copy = JSON.parse(JSON.stringify(original))
             copy.id = newId
-            copy.name = newName
             copy.lastModified = Date.now()
-            coverLetters.value.push(copy)
+
+            workspaceStore.workspaces[currentWs].coverLetters[newName] = copy
+            workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+            workspaceStore.save()
         }
     }
 
@@ -88,15 +100,26 @@ export const useCoverLetterStore = defineStore('coverLetter', () => {
     }
 
     const updateCoverLetterName = (oldName, newName) => {
+        const currentWs = workspaceStore.currentWorkspace
+        if (!currentWs || !workspaceStore.workspaces[currentWs]) return
+
         if (oldName === newName) return
         if (isNameTaken(newName)) {
             throw new Error('Cover Letter name already exists')
         }
 
-        const found = coverLetters.value.find(c => c.name === oldName)
-        if (found) {
-            found.name = newName
-            found.lastModified = Date.now()
+        const clDoc = workspaceStore.workspaces[currentWs].coverLetters[oldName]
+        if (clDoc) {
+            // Copy to new key
+            workspaceStore.workspaces[currentWs].coverLetters[newName] = clDoc
+            clDoc.lastModified = Date.now()
+
+            // Delete old key
+            delete workspaceStore.workspaces[currentWs].coverLetters[oldName]
+
+            workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+            workspaceStore.save()
+
             // Also update current if we are editing it
             if (currentCoverLetterName.value === oldName) {
                 currentCoverLetterName.value = newName
@@ -105,6 +128,11 @@ export const useCoverLetterStore = defineStore('coverLetter', () => {
     }
 
     const importCoverLetter = (jsonContent, name) => {
+        const currentWs = workspaceStore.currentWorkspace
+        if (!currentWs) {
+            throw new Error('No workspace selected')
+        }
+
         if (isNameTaken(name)) {
             throw new Error('Name already exists')
         }
@@ -122,17 +150,28 @@ export const useCoverLetterStore = defineStore('coverLetter', () => {
             // simple merge, deeper merge might be better but this should suffice for structure
             const mergedData = { ...template, ...dataToImport }
 
-            coverLetters.value.push({
+            const newCl = {
                 id: crypto.randomUUID(),
-                name,
                 lastModified: Date.now(),
                 data: mergedData
-            })
+            }
+
+            workspaceStore.workspaces[currentWs].coverLetters[name] = newCl
+            workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+            workspaceStore.save()
             currentCoverLetterName.value = name
         } catch (e) {
             console.error(e)
             throw new Error('Invalid JSON file')
         }
+    }
+
+    const exportCoverLetter = (name) => {
+        const clDoc = coverLetters.value[name]
+        if (!clDoc) return null
+
+        // Export only name + data (NOT id, lastModified, or workspace info)
+        return { name, data: clDoc.data }
     }
 
     return {
@@ -145,6 +184,7 @@ export const useCoverLetterStore = defineStore('coverLetter', () => {
         setCurrentCoverLetter,
         updateCoverLetterName,
         isNameTaken,
-        importCoverLetter
+        importCoverLetter,
+        exportCoverLetter
     }
 })

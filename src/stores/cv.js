@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useCvMetaStore } from './cvMeta'
+import { useWorkspaceStore } from './workspace'
 
 export const useCvStore = defineStore('cv', () => {
   const metaStore = useCvMetaStore()
+  const workspaceStore = useWorkspaceStore()
 
   const getNewCvTemplate = () => ({
     personalInfo: {
@@ -85,40 +87,26 @@ export const useCvStore = defineStore('cv', () => {
     return cvData
   }
 
-  // Initialize State
-  const savedCvs = localStorage.getItem('cvs-collection')
-  const savedOldCv = localStorage.getItem('cv-data')
-
-  let initialCvs = []
-
-  if (savedCvs) {
-    initialCvs = JSON.parse(savedCvs)
-  } else if (savedOldCv) {
-    // Migration from single CV mode
-    const oldCv = JSON.parse(savedOldCv)
-    const migrated = migrateCv(oldCv)
-    initialCvs = [{
-      id: crypto.randomUUID(),
-      name: migrated.personalInfo.name || 'My CV',
-      lastModified: Date.now(),
-      data: migrated
-    }]
-  }
-
-  const cvs = ref(initialCvs)
   const currentCvName = ref(null)
+
+  // Computed to get current workspace's CVs
+  const cvs = computed(() => {
+    return workspaceStore.getCurrentCvs
+  })
 
   // Computed current CV data
   const cv = computed(() => {
     if (!currentCvName.value) return null
-    const found = cvs.value.find(c => c.name === currentCvName.value)
-    return found ? found.data : null
+    const currentCvs = cvs.value
+    const cvDoc = currentCvs[currentCvName.value]
+    return cvDoc ? cvDoc.data : null
   })
 
   const currentCvId = computed(() => {
     if (!currentCvName.value) return null
-    const found = cvs.value.find(c => c.name === currentCvName.value)
-    return found ? found.id : null
+    const currentCvs = cvs.value
+    const cvDoc = currentCvs[currentCvName.value]
+    return cvDoc ? cvDoc.id : null
   })
 
   // Undo/Redo History
@@ -129,38 +117,42 @@ export const useCvStore = defineStore('cv', () => {
   }
 
   const undo = () => {
-    if (!currentCvId.value) return
+    if (!currentCvId.value || !currentCvName.value) return
     const previous = metaStore.getUndoState(currentCvId.value)
     if (previous) {
       metaStore.pushToFuture(currentCvId.value, cv.value)
 
       // Apply previous state
-      const found = cvs.value.find(c => c.name === currentCvName.value)
-      if (found) {
-        found.data = previous
+      const currentWs = workspaceStore.currentWorkspace
+      if (currentWs && workspaceStore.workspaces[currentWs]) {
+        workspaceStore.workspaces[currentWs].cvs[currentCvName.value].data = previous
+        workspaceStore.workspaces[currentWs].cvs[currentCvName.value].lastModified = Date.now()
       }
     }
   }
 
   const redo = () => {
-    if (!currentCvId.value) return
+    if (!currentCvId.value || !currentCvName.value) return
     const next = metaStore.getRedoState(currentCvId.value)
     if (next) {
       metaStore.pushToPast(currentCvId.value, cv.value)
 
       // Apply next state
-      const found = cvs.value.find(c => c.name === currentCvName.value)
-      if (found) {
-        found.data = next
+      const currentWs = workspaceStore.currentWorkspace
+      if (currentWs && workspaceStore.workspaces[currentWs]) {
+        workspaceStore.workspaces[currentWs].cvs[currentCvName.value].data = next
+        workspaceStore.workspaces[currentWs].cvs[currentCvName.value].lastModified = Date.now()
       }
     }
   }
 
   const applyAiChanges = (newCvData) => {
+    if (!currentCvName.value) return
     saveSnapshot()
-    const found = cvs.value.find(c => c.name === currentCvName.value)
-    if (found) {
-      found.data = newCvData
+    const currentWs = workspaceStore.currentWorkspace
+    if (currentWs && workspaceStore.workspaces[currentWs]) {
+      workspaceStore.workspaces[currentWs].cvs[currentCvName.value].data = newCvData
+      workspaceStore.workspaces[currentWs].cvs[currentCvName.value].lastModified = Date.now()
     }
   }
 
@@ -174,63 +166,84 @@ export const useCvStore = defineStore('cv', () => {
     return metaStore.hasRedo(currentCvId.value)
   })
 
-  // Persistence
-  watch(cvs, (newVal) => {
-    localStorage.setItem('cvs-collection', JSON.stringify(newVal))
-  }, { deep: true })
-
   const isNameTaken = (name) => {
-    return cvs.value.some(c => c.name.toLowerCase() === name.toLowerCase())
+    return name in cvs.value
   }
 
   // Actions
   const createCv = (name) => {
+    const currentWs = workspaceStore.currentWorkspace
+    if (!currentWs) {
+      throw new Error('No workspace selected')
+    }
+
     if (isNameTaken(name)) {
       throw new Error('CV name already exists')
     }
+
     const newId = crypto.randomUUID()
+    const newCvData = getNewCvTemplate()
+    newCvData.personalInfo.name = name
+
     const newCv = {
       id: newId,
-      name: name,
       lastModified: Date.now(),
-      data: getNewCvTemplate()
+      data: newCvData
     }
-    // Set the name in the personal info as well
-    newCv.data.personalInfo.name = name
 
-    cvs.value.push(newCv)
+    // Update nested structure
+    workspaceStore.workspaces[currentWs].cvs[name] = newCv
+    workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+    workspaceStore.save()
+
     return name
   }
 
   const deleteCv = (name) => {
-    const index = cvs.value.findIndex(c => c.name === name)
-    if (index !== -1) {
-      const id = cvs.value[index].id
-      metaStore.deleteMeta(id)
-      cvs.value.splice(index, 1)
+    const currentWs = workspaceStore.currentWorkspace
+    if (!currentWs || !workspaceStore.workspaces[currentWs]) return
+
+    const cvDoc = workspaceStore.workspaces[currentWs].cvs[name]
+    if (cvDoc) {
+      // Delete metadata
+      metaStore.deleteMeta(cvDoc.id)
+      // Delete from workspace
+      delete workspaceStore.workspaces[currentWs].cvs[name]
+      workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+      workspaceStore.save()
     }
   }
 
   const duplicateCv = (name) => {
-    const original = cvs.value.find(c => c.name === name)
+    const currentWs = workspaceStore.currentWorkspace
+    if (!currentWs) return
+
+    const original = cvs.value[name]
     if (original) {
-      let newName = `${original.name} (Copy)`
+      let newName = `${name} (Copy)`
       let counter = 1
       while (isNameTaken(newName)) {
         counter++
-        newName = `${original.name} (Copy ${counter})`
+        newName = `${name} (Copy ${counter})`
       }
 
       const newId = crypto.randomUUID()
       const copy = JSON.parse(JSON.stringify(original))
       copy.id = newId
-      copy.name = newName
       copy.lastModified = Date.now()
-      cvs.value.push(copy)
+
+      workspaceStore.workspaces[currentWs].cvs[newName] = copy
+      workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+      workspaceStore.save()
     }
   }
 
   const importCv = (fileContent, name) => {
+    const currentWs = workspaceStore.currentWorkspace
+    if (!currentWs) {
+      throw new Error('No workspace selected')
+    }
+
     if (isNameTaken(name)) {
       throw new Error('CV name already exists')
     }
@@ -249,12 +262,15 @@ export const useCvStore = defineStore('cv', () => {
       }
 
       const newId = crypto.randomUUID()
-      cvs.value.push({
+      const newCv = {
         id: newId,
-        name: name,
         lastModified: Date.now(),
         data: newCvData
-      })
+      }
+
+      workspaceStore.workspaces[currentWs].cvs[name] = newCv
+      workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+      workspaceStore.save()
     } catch (e) {
       console.error('Import failed', e)
       throw e
@@ -266,20 +282,39 @@ export const useCvStore = defineStore('cv', () => {
   }
 
   const updateCvName = (oldName, newName) => {
+    const currentWs = workspaceStore.currentWorkspace
+    if (!currentWs || !workspaceStore.workspaces[currentWs]) return
+
     if (oldName === newName) return
     if (isNameTaken(newName)) {
       throw new Error('CV name already exists')
     }
 
-    const found = cvs.value.find(c => c.name === oldName)
-    if (found) {
-      found.name = newName
-      found.lastModified = Date.now()
-      // Also update current if we are editing it
+    const cvDoc = workspaceStore.workspaces[currentWs].cvs[oldName]
+    if (cvDoc) {
+      // Copy to new key
+      workspaceStore.workspaces[currentWs].cvs[newName] = cvDoc
+      cvDoc.lastModified = Date.now()
+
+      // Delete old key
+      delete workspaceStore.workspaces[currentWs].cvs[oldName]
+
+      workspaceStore.workspaces[currentWs].metadata.lastModified = Date.now()
+      workspaceStore.save()
+
+      // Update current if we are editing it
       if (currentCvName.value === oldName) {
         currentCvName.value = newName
       }
     }
+  }
+
+  const exportCv = (name) => {
+    const cvDoc = cvs.value[name]
+    if (!cvDoc) return null
+
+    // Export only name + data (NOT id, lastModified, or workspace info)
+    return { name, data: cvDoc.data }
   }
 
   // Helper methods for the form (operating on current CV)
@@ -356,6 +391,7 @@ export const useCvStore = defineStore('cv', () => {
     deleteCv,
     duplicateCv,
     importCv,
+    exportCv,
     setCurrentCv,
     updateCvName,
     addContactField,

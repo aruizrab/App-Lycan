@@ -5,6 +5,7 @@ import CoverLetterForm from '../components/CoverLetterForm.vue'
 import CoverLetterPreview from '../components/CoverLetterPreview.vue'
 import { useCvStore } from '../stores/cv'
 import { useCoverLetterStore } from '../stores/coverLetter'
+import { useWorkspaceStore } from '../stores/workspace'
 import { useCvMetaStore } from '../stores/cvMeta'
 import { Printer, Moon, Sun, ArrowLeft, FileText, Settings, Sparkles, Send, RotateCcw, RotateCw, X, MessageSquare, Plus, Trash2, ChevronLeft, Download, Edit, Mail } from 'lucide-vue-next'
 import { ref, onMounted, nextTick, watch, computed } from 'vue'
@@ -23,6 +24,7 @@ const props = defineProps({
 
 const cvStore = useCvStore()
 const clStore = useCoverLetterStore()
+const workspaceStore = useWorkspaceStore()
 const metaStore = useCvMetaStore()
 const route = useRoute()
 const router = useRouter()
@@ -311,7 +313,12 @@ const print = () => {
 }
 
 const goBack = () => {
-  router.push('/')
+  const workspaceName = workspaceStore.currentWorkspace
+  if (workspaceName) {
+    router.push(`/workspace/${encodeURIComponent(workspaceName)}`)
+  } else {
+    router.push('/')
+  }
 }
 
 const undo = () => {
