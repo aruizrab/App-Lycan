@@ -23,6 +23,11 @@ const props = defineProps({
   uppercaseHeaders: {
     type: Boolean,
     default: true
+  },
+  picturePosition: {
+    type: String,
+    default: 'left',
+    validator: (value) => ['left', 'right'].includes(value)
   }
 })
 
@@ -89,7 +94,7 @@ const cleanRichText = (content) => {
     </div>
 
     <!-- Header -->
-    <header class="flex gap-6 items-start border-b-2 border-gray-800 pb-6 mb-4">
+    <header class="flex gap-6 items-start border-b-2 border-gray-800 pb-6 mb-4" :class="{ 'flex-row-reverse': picturePosition === 'right' }">
       <img v-if="cv.personalInfo.picture && (!atsMode || showPictureInAts)" :src="cv.personalInfo.picture" class="w-32 h-32 object-cover rounded-full border-2 border-gray-200" />
       <div class="flex-1">
         <h1 class="text-4xl font-bold text-gray-900 tracking-wide" :class="{ 'uppercase': uppercaseName }">{{ cv.personalInfo.name }}</h1>

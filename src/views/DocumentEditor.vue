@@ -45,7 +45,7 @@ const chatContainer = ref(null)
 const aiPanelView = ref('chat')
 
 const settingsStore = useSettingsStore()
-const { atsMode, showPictureInAts, uppercaseName, uppercaseRole, uppercaseHeaders, uppercaseCoverLetterTitle, openRouterKey, openRouterModel, customModels } = storeToRefs(settingsStore)
+const { atsMode, showPictureInAts, uppercaseName, uppercaseRole, uppercaseHeaders, uppercaseCoverLetterTitle, picturePosition, openRouterKey, openRouterModel, customModels } = storeToRefs(settingsStore)
 const canUndo = computed(() => isCv.value ? cvStore.canUndo : false)
 const canRedo = computed(() => isCv.value ? cvStore.canRedo : false)
 
@@ -468,6 +468,19 @@ const redo = () => {
                           <span class="pointer-events-none absolute left-0.5 top-0.5 block h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5 peer-disabled:bg-gray-100"></span>
                         </div>
                       </label>
+                      <label v-if="isCv" class="flex items-center justify-between gap-4 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                        <span>Picture Position</span>
+                        <div class="relative inline-flex h-6 w-20 items-center">
+                          <input type="checkbox" v-model="picturePosition" true-value="right" false-value="left" class="peer sr-only" role="switch" />
+                          <span class="pointer-events-none block h-6 w-20 rounded-full bg-gray-300 dark:bg-gray-700 transition-colors peer-checked:bg-blue-600 dark:peer-checked:bg-blue-500 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-400 dark:peer-focus-visible:ring-blue-500 relative">
+                            <span class="absolute inset-0 flex items-center justify-between px-1.5 text-[10px] font-medium">
+                              <span class="text-white peer-checked:text-gray-400 transition-colors">Left</span>
+                              <span class="text-gray-400 peer-checked:text-white transition-colors">Right</span>
+                            </span>
+                          </span>
+                          <span class="pointer-events-none absolute left-0.5 top-0.5 block h-5 w-9 rounded-full bg-white shadow-sm transition peer-checked:translate-x-10"></span>
+                        </div>
+                      </label>
                     </div>
                 </div>
             </div>
@@ -497,6 +510,7 @@ const redo = () => {
             :uppercase-name="uppercaseName"
             :uppercase-role="uppercaseRole"
             :uppercase-headers="uppercaseHeaders"
+            :picture-position="picturePosition"
           />
           <CoverLetterPreview 
             v-else

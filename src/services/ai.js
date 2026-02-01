@@ -28,7 +28,7 @@ export const performAiAction = async (apiKey, model, cvData, userPrompt, systemI
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
                 'HTTP-Referer': window.location.origin, // Required by OpenRouter
-                'X-Title': 'CV Maker' // Optional
+                'X-Title': 'App-Lycan' // Optional
             },
             body: JSON.stringify(payload)
         })

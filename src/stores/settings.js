@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { reactive, watch, toRefs } from 'vue'
 
-const STORAGE_KEY = 'cv-maker-ui-settings'
+const STORAGE_KEY = 'app-lycan-ui-settings'
 
 const defaultSettings = () => ({
     atsMode: false,
@@ -10,6 +10,7 @@ const defaultSettings = () => ({
     uppercaseRole: true,
     uppercaseHeaders: true,
     uppercaseCoverLetterTitle: true,
+    picturePosition: 'left',
     openRouterKey: '',
     openRouterModel: 'openai/gpt-3.5-turbo',
     customModels: []

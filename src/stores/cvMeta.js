@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { reactive, watch } from 'vue'
 
-const STORAGE_KEY = 'cv-maker-meta-data'
+const STORAGE_KEY = 'app-lycan-meta-data'
 
 export const useCvMetaStore = defineStore('cvMeta', () => {
     const state = reactive({})
