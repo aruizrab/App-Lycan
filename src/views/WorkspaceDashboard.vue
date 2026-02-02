@@ -8,6 +8,24 @@
         </div>
         
         <div class="flex gap-2">
+          <!-- User Profile -->
+          <button
+            @click="router.push('/profile')"
+            class="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title="User Profile"
+          >
+            <UserIcon class="w-5 h-5" />
+          </button>
+          
+          <!-- AI Settings -->
+          <button
+            @click="router.push('/settings')"
+            class="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title="AI Settings"
+          >
+            <SettingsIcon class="w-5 h-5" />
+          </button>
+          
           <!-- Theme toggle -->
           <button
             @click="toggleTheme"
@@ -119,7 +137,9 @@ import {
   Download,
   Trash2,
   Moon as MoonIcon,
-  Sun as SunIcon
+  Sun as SunIcon,
+  User as UserIcon,
+  Settings as SettingsIcon
 } from 'lucide-vue-next'
 
 const router = useRouter()

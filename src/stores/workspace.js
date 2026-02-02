@@ -5,6 +5,54 @@ import { useCvMetaStore } from './cvMeta'
 const STORAGE_KEY = 'workspaces'
 const DEFAULT_WORKSPACE_NAME = 'My Workspace'
 
+/**
+ * Default workspace context structure for AI-powered features
+ */
+const defaultWorkspaceContext = () => ({
+    // Job analysis from AI or manual entry
+    jobAnalysis: null,
+    // Structure when set:
+    // {
+    //     content: string (rich text),
+    //     source: 'ai' | 'manual' | 'url',
+    //     sourceUrl: string | null,
+    //     jobTitle: string | null,
+    //     company: string | null,
+    //     createdAt: timestamp,
+    //     lastModified: timestamp
+    // }
+
+    // Profile match report
+    matchReport: null,
+    // Structure when set:
+    // {
+    //     content: string (rich text),
+    //     score: number (0-100),
+    //     strengths: string[],
+    //     weaknesses: string[],
+    //     recommendation: 'apply' | 'consider' | 'skip',
+    //     createdAt: timestamp,
+    //     lastModified: timestamp
+    // }
+
+    // Company research from AI
+    companyResearch: null
+    // Structure when set:
+    // {
+    //     content: string (rich text),
+    //     companyName: string,
+    //     legitimacyScore: number | null,
+    //     redFlags: string[],
+    //     strategicInfo: {
+    //         businessModel: string,
+    //         achievements: string[],
+    //         goals: string[]
+    //     } | null,
+    //     createdAt: timestamp,
+    //     lastModified: timestamp
+    // }
+})
+
 export const useWorkspaceStore = defineStore('workspace', () => {
     const workspaces = ref({})
     const currentWorkspace = ref(null)
@@ -189,7 +237,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                 lastModified: Date.now()
             },
             cvs: {},
-            coverLetters: {}
+            coverLetters: {},
+            // AI context fields
+            ...defaultWorkspaceContext()
         }
 
         return name
@@ -379,6 +429,186 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         return workspaces.value[currentWorkspace.value].coverLetters || {}
     })
 
+    // ========================================
+    // AI Context Methods
+    // ========================================
+
+    /**
+     * Get job analysis for current workspace
+     */
+    const getJobAnalysis = computed(() => {
+        if (!currentWorkspace.value || !workspaces.value[currentWorkspace.value]) {
+            return null
+        }
+        return workspaces.value[currentWorkspace.value].jobAnalysis || null
+    })
+
+    /**
+     * Set job analysis for current workspace
+     */
+    const setJobAnalysis = (analysis) => {
+        if (!currentWorkspace.value) return
+
+        workspaces.value[currentWorkspace.value].jobAnalysis = {
+            ...analysis,
+            lastModified: Date.now(),
+            createdAt: analysis.createdAt || Date.now()
+        }
+        workspaces.value[currentWorkspace.value].metadata.lastModified = Date.now()
+    }
+
+    /**
+     * Update job analysis content
+     */
+    const updateJobAnalysis = (updates) => {
+        if (!currentWorkspace.value) return
+
+        const current = workspaces.value[currentWorkspace.value].jobAnalysis
+        if (current) {
+            workspaces.value[currentWorkspace.value].jobAnalysis = {
+                ...current,
+                ...updates,
+                lastModified: Date.now()
+            }
+            workspaces.value[currentWorkspace.value].metadata.lastModified = Date.now()
+        }
+    }
+
+    /**
+     * Delete job analysis from current workspace
+     */
+    const deleteJobAnalysis = () => {
+        if (!currentWorkspace.value) return
+        workspaces.value[currentWorkspace.value].jobAnalysis = null
+        workspaces.value[currentWorkspace.value].metadata.lastModified = Date.now()
+    }
+
+    /**
+     * Get match report for current workspace
+     */
+    const getMatchReport = computed(() => {
+        if (!currentWorkspace.value || !workspaces.value[currentWorkspace.value]) {
+            return null
+        }
+        return workspaces.value[currentWorkspace.value].matchReport || null
+    })
+
+    /**
+     * Set match report for current workspace
+     */
+    const setMatchReport = (report) => {
+        if (!currentWorkspace.value) return
+
+        workspaces.value[currentWorkspace.value].matchReport = {
+            ...report,
+            lastModified: Date.now(),
+            createdAt: report.createdAt || Date.now()
+        }
+        workspaces.value[currentWorkspace.value].metadata.lastModified = Date.now()
+    }
+
+    /**
+     * Update match report content
+     */
+    const updateMatchReport = (updates) => {
+        if (!currentWorkspace.value) return
+
+        const current = workspaces.value[currentWorkspace.value].matchReport
+        if (current) {
+            workspaces.value[currentWorkspace.value].matchReport = {
+                ...current,
+                ...updates,
+                lastModified: Date.now()
+            }
+            workspaces.value[currentWorkspace.value].metadata.lastModified = Date.now()
+        }
+    }
+
+    /**
+     * Delete match report from current workspace
+     */
+    const deleteMatchReport = () => {
+        if (!currentWorkspace.value) return
+        workspaces.value[currentWorkspace.value].matchReport = null
+        workspaces.value[currentWorkspace.value].metadata.lastModified = Date.now()
+    }
+
+    /**
+     * Get company research for current workspace
+     */
+    const getCompanyResearch = computed(() => {
+        if (!currentWorkspace.value || !workspaces.value[currentWorkspace.value]) {
+            return null
+        }
+        return workspaces.value[currentWorkspace.value].companyResearch || null
+    })
+
+    /**
+     * Set company research for current workspace
+     */
+    const setCompanyResearch = (research) => {
+        if (!currentWorkspace.value) return
+
+        workspaces.value[currentWorkspace.value].companyResearch = {
+            ...research,
+            lastModified: Date.now(),
+            createdAt: research.createdAt || Date.now()
+        }
+        workspaces.value[currentWorkspace.value].metadata.lastModified = Date.now()
+    }
+
+    /**
+     * Update company research content
+     */
+    const updateCompanyResearch = (updates) => {
+        if (!currentWorkspace.value) return
+
+        const current = workspaces.value[currentWorkspace.value].companyResearch
+        if (current) {
+            workspaces.value[currentWorkspace.value].companyResearch = {
+                ...current,
+                ...updates,
+                lastModified: Date.now()
+            }
+            workspaces.value[currentWorkspace.value].metadata.lastModified = Date.now()
+        }
+    }
+
+    /**
+     * Delete company research from current workspace
+     */
+    const deleteCompanyResearch = () => {
+        if (!currentWorkspace.value) return
+        workspaces.value[currentWorkspace.value].companyResearch = null
+        workspaces.value[currentWorkspace.value].metadata.lastModified = Date.now()
+    }
+
+    /**
+     * Check if workspace has AI context (any of the three)
+     */
+    const hasAiContext = computed(() => {
+        if (!currentWorkspace.value || !workspaces.value[currentWorkspace.value]) {
+            return false
+        }
+        const ws = workspaces.value[currentWorkspace.value]
+        return !!(ws.jobAnalysis || ws.matchReport || ws.companyResearch)
+    })
+
+    /**
+     * Get all AI context for current workspace (for AI command assembly)
+     */
+    const getAiContext = computed(() => {
+        if (!currentWorkspace.value || !workspaces.value[currentWorkspace.value]) {
+            return { jobAnalysis: null, matchReport: null, companyResearch: null }
+        }
+        const ws = workspaces.value[currentWorkspace.value]
+        return {
+            jobAnalysis: ws.jobAnalysis || null,
+            matchReport: ws.matchReport || null,
+            companyResearch: ws.companyResearch || null
+        }
+    })
+
     // Initialize on store creation
     init()
 
@@ -395,6 +625,21 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         getWorkspaceList,
         getCurrentCvs,
         getCurrentCoverLetters,
+        // AI Context methods
+        getJobAnalysis,
+        setJobAnalysis,
+        updateJobAnalysis,
+        deleteJobAnalysis,
+        getMatchReport,
+        setMatchReport,
+        updateMatchReport,
+        deleteMatchReport,
+        getCompanyResearch,
+        setCompanyResearch,
+        updateCompanyResearch,
+        deleteCompanyResearch,
+        hasAiContext,
+        getAiContext,
         save
     }
 })

@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import WorkspaceDashboard from '../views/WorkspaceDashboard.vue'
 import Dashboard from '../views/Dashboard.vue'
 import DocumentEditor from '../views/DocumentEditor.vue'
+import UserProfile from '../views/UserProfile.vue'
+import Settings from '../views/Settings.vue'
 import { useWorkspaceStore } from '../stores/workspace'
 
 const routes = [
@@ -9,6 +11,16 @@ const routes = [
         path: '/',
         name: 'WorkspaceDashboard',
         component: WorkspaceDashboard
+    },
+    {
+        path: '/profile',
+        name: 'UserProfile',
+        component: UserProfile
+    },
+    {
+        path: '/settings',
+        name: 'Settings',
+        component: Settings
     },
     {
         path: '/workspace/:workspaceName',

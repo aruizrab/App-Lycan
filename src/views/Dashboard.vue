@@ -8,6 +8,7 @@ import DocumentGrid from '../components/DocumentGrid.vue'
 import DocumentList from '../components/DocumentList.vue'
 import ActionMenu from '../components/ActionMenu.vue'
 import CreateImportModal from '../components/CreateImportModal.vue'
+import WorkspaceContextPanel from '../components/WorkspaceContextPanel.vue'
 import { 
   Plus, 
   Upload, 
@@ -21,7 +22,12 @@ import {
   Edit,
   Moon,
   Sun,
-  ArrowLeft
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  Briefcase,
+  User,
+  Settings
 } from 'lucide-vue-next'
 
 const store = useCvStore()
@@ -32,6 +38,7 @@ const route = useRoute()
 
 const viewMode = ref('grid') // 'grid' or 'list'
 const activeTab = ref('cv') // 'cv' or 'cover-letter'
+const showWorkspaceContext = ref(true) // Show AI context panel
 
 // Theme Logic
 const isDark = ref(document.documentElement.classList.contains('dark'))
@@ -345,6 +352,31 @@ const handleDrop = async (event) => {
   }
   reader.readAsText(file)
 }
+
+// Workspace context handlers
+const handleContextEdit = (type) => {
+  // Could open a modal for editing, for now just log
+  console.log('Edit context:', type)
+}
+
+const handleContextDelete = (type) => {
+  switch (type) {
+    case 'jobAnalysis':
+      workspaceStore.deleteJobAnalysis()
+      break
+    case 'matchReport':
+      workspaceStore.deleteMatchReport()
+      break
+    case 'companyResearch':
+      workspaceStore.deleteCompanyResearch()
+      break
+  }
+}
+
+const handleContextRegenerate = (type) => {
+  // Open AI assistant to regenerate
+  console.log('Regenerate context:', type)
+}
 </script>
 
 <template>
@@ -417,6 +449,22 @@ const handleDrop = async (event) => {
         </div>
 
         <div class="flex gap-4">
+          <button 
+            @click="router.push('/profile')" 
+            class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            title="User Profile"
+          >
+            <User :size="20" />
+          </button>
+          
+          <button 
+            @click="router.push('/settings')" 
+            class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            title="AI Settings"
+          >
+            <Settings :size="20" />
+          </button>
+          
           <button @click="toggleTheme" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <Moon v-if="isDark" :size="20" />
             <Sun v-else :size="20" />
@@ -453,6 +501,27 @@ const handleDrop = async (event) => {
           </button>
         </div>
       </header>
+
+      <!-- Workspace AI Context Section -->
+      <div class="mb-6">
+        <button
+          @click="showWorkspaceContext = !showWorkspaceContext"
+          class="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-3"
+        >
+          <component :is="showWorkspaceContext ? ChevronDown : ChevronRight" :size="16" />
+          <Briefcase :size="16" />
+          Job Application Context
+          <span v-if="workspaceStore.hasAiContext" class="ml-2 w-2 h-2 rounded-full bg-green-500"></span>
+        </button>
+
+        <div v-if="showWorkspaceContext" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+          <WorkspaceContextPanel
+            @edit="handleContextEdit"
+            @delete="handleContextDelete"
+            @regenerate="handleContextRegenerate"
+          />
+        </div>
+      </div>
 
       <!-- Grid View -->
       <DocumentGrid
