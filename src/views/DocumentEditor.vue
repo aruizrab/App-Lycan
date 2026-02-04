@@ -54,29 +54,30 @@ const pendingAiResult = ref(null)
 const showApplyButton = ref(false)
 
 const settingsStore = useSettingsStore()
-const { atsMode, showPictureInAts, uppercaseName, uppercaseRole, uppercaseHeaders, uppercaseCoverLetterTitle, picturePosition, openRouterKey, openRouterModel, customModels } = storeToRefs(settingsStore)
+const { atsMode, showPictureInAts, uppercaseName, uppercaseRole, uppercaseHeaders, uppercaseCoverLetterTitle, picturePosition, openRouterKey, openRouterModel, customModels, availableModels } = storeToRefs(settingsStore)
 const canUndo = computed(() => isCv.value ? cvStore.canUndo : false)
 const canRedo = computed(() => isCv.value ? cvStore.canRedo : false)
 
-const defaultModels = [
-  'openai/gpt-3.5-turbo',
-  'openai/gpt-4o',
-  'anthropic/claude-3-5-sonnet',
-  'anthropic/claude-3-haiku',
-  'google/gemini-flash-1.5',
-  'meta-llama/llama-3-70b-instruct'
-]
-
-const availableModels = computed(() => {
-  return [...defaultModels, ...customModels.value]
+const allModels = computed(() => {
+  return [...availableModels.value, ...customModels.value]
 })
 
 const newModelId = ref('')
 
 const addCustomModel = () => {
-  if (newModelId.value && !availableModels.value.includes(newModelId.value)) {
-    customModels.value.push(newModelId.value)
-    openRouterModel.value = newModelId.value
+  if (newModelId.value) {
+    const modelId = newModelId.value.trim()
+    const existingModel = allModels.value.find(m => m.id === modelId)
+    
+    if (!existingModel) {
+      // Add to custom models using settings store
+      settingsStore.addCustomModel({
+        id: modelId,
+        name: modelId,
+        webSearchCompatible: false
+      })
+      openRouterModel.value = modelId
+    }
     newModelId.value = ''
   }
 }

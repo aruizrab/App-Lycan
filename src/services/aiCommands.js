@@ -5,8 +5,7 @@ import { useSystemPromptsStore, PROMPT_TYPES } from '../stores/systemPrompts'
 import {
     streamAndCollect,
     performAiActionWithJson,
-    isWebSearchCompatible,
-    RECOMMENDED_MODELS
+    isWebSearchCompatible
 } from './ai'
 
 /**
@@ -237,8 +236,9 @@ export const executeAiCommand = async (commandId, userInput, options = {}) => {
         : command.requiresWebSearch
 
     if (needsWebSearch) {
-        const allModels = [...RECOMMENDED_MODELS, ...settingsStore.customModels.value]
-        if (!isWebSearchCompatible(model, allModels)) {
+        const availableModels = settingsStore.availableModels.value
+        const customModels = settingsStore.customModels.value
+        if (!isWebSearchCompatible(model, availableModels, customModels)) {
             throw new Error(
                 `The selected model (${model}) does not support web search. ` +
                 `Please select a web-search compatible model for ${command.name} in settings.`

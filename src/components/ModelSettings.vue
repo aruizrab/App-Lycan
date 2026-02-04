@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useSettingsStore, AI_COMMAND_TYPES, WEB_SEARCH_COMMANDS } from '../stores/settings'
-import { RECOMMENDED_MODELS, WEB_SEARCH_MODELS, isWebSearchCompatible } from '../services/ai'
+import { isWebSearchCompatible } from '../services/ai'
 import { storeToRefs } from 'pinia'
+import ModelDropdown from './ModelDropdown.vue'
 import {
     Settings,
     Plus,
@@ -12,7 +13,8 @@ import {
     Check,
     X,
     AlertTriangle,
-    Info
+    Info,
+    RefreshCw
 } from 'lucide-vue-next'
 
 const settingsStore = useSettingsStore()
@@ -21,8 +23,18 @@ const {
     openRouterModel,
     taskModels,
     customModels,
-    matchReportThreshold
+    matchReportThreshold,
+    availableModels,
+    isLoadingModels,
+    modelsFetchError
 } = storeToRefs(settingsStore)
+
+// Watch for API key changes and fetch models
+watch(openRouterKey, (newKey) => {
+    if (newKey) {
+        settingsStore.fetchModels()
+    }
+})
 
 // Local state
 const newModelId = ref('')
@@ -66,7 +78,7 @@ const COMMAND_LABELS = {
 
 // Computed
 const allModels = computed(() => {
-    return [...RECOMMENDED_MODELS, ...customModels.value]
+    return [...availableModels.value, ...customModels.value]
 })
 
 const webSearchModels = computed(() => {
@@ -84,7 +96,20 @@ const getModelsForTask = (taskType) => {
 const isModelValidForTask = (taskType, modelId) => {
     const requiresWebSearch = WEB_SEARCH_COMMANDS.includes(taskType)
     if (!requiresWebSearch) return true
-    return isWebSearchCompatible(modelId, customModels.value)
+    return isWebSearchCompatible(modelId, availableModels.value, customModels.value)
+}
+
+const cacheAge = computed(() => {
+    const age = settingsStore.getCacheAge()
+    if (age === null) return 'Never'
+    if (age === 0) return 'Just now'
+    if (age < 1) return 'Less than 1 hour ago'
+    if (age === 1) return '1 hour ago'
+    return `${age} hours ago`
+})
+
+const handleRefreshModels = async () => {
+    await settingsStore.refreshModels()
 }
 
 // Methods
@@ -124,10 +149,22 @@ const toggleWebSearchCompatibility = (modelId) => {
     <div class="space-y-6">
         <!-- API Key Section -->
         <div class="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4">
-            <h3 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-                <Settings :size="18" />
-                OpenRouter Configuration
-            </h3>
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Settings :size="18" />
+                    OpenRouter Configuration
+                </h3>
+                <button
+                    v-if="openRouterKey"
+                    @click="handleRefreshModels"
+                    :disabled="isLoadingModels"
+                    class="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                    :title="`Last updated: ${cacheAge}`"
+                >
+                    <RefreshCw :size="14" :class="{ 'animate-spin': isLoadingModels }" />
+                    Refresh Models
+                </button>
+            </div>
 
             <div class="space-y-4">
                 <div>
@@ -145,25 +182,24 @@ const toggleWebSearchCompatibility = (modelId) => {
                     </p>
                 </div>
 
+                <!-- Model fetch status -->
+                <div v-if="isLoadingModels" class="p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+                    Loading available models from OpenRouter...
+                </div>
+                <div v-else-if="modelsFetchError" class="p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
+                    Failed to fetch models: {{ modelsFetchError }}
+                </div>
+                <div v-else-if="availableModels.length > 0" class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ availableModels.length }} models available • Last updated: {{ cacheAge }}
+                </div>
+
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Default Model
-                    </label>
-                    <select
+                    <ModelDropdown
                         v-model="openRouterModel"
-                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-                    >
-                        <optgroup label="Recommended Models">
-                            <option v-for="model in RECOMMENDED_MODELS" :key="model.id" :value="model.id">
-                                {{ model.name }} {{ model.webSearchCompatible ? '🌐' : '' }}
-                            </option>
-                        </optgroup>
-                        <optgroup v-if="customModels.length" label="Custom Models">
-                            <option v-for="model in customModels" :key="model.id" :value="model.id">
-                                {{ model.name }} {{ model.webSearchCompatible ? '🌐' : '' }}
-                            </option>
-                        </optgroup>
-                    </select>
+                        :models="allModels"
+                        label="Default Model"
+                        placeholder="Search models..."
+                    />
                 </div>
             </div>
         </div>
@@ -193,21 +229,13 @@ const toggleWebSearchCompatibility = (modelId) => {
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-2">
-                        <select
-                            v-model="taskModels[taskType]"
-                            class="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-                        >
-                            <option v-for="model in getModelsForTask(taskType)" :key="model.id" :value="model.id">
-                                {{ model.name }} {{ model.webSearchCompatible ? '🌐' : '' }}
-                            </option>
-                        </select>
-
-                        <!-- Warning if invalid model selected -->
-                        <div v-if="!isModelValidForTask(taskType, taskModels[taskType])" class="text-yellow-600 dark:text-yellow-400" title="Selected model may not support web search">
-                            <AlertTriangle :size="20" />
-                        </div>
-                    </div>
+                    <ModelDropdown
+                        v-model="taskModels[taskType]"
+                        :models="allModels"
+                        :require-web-search="config.requiresWebSearch"
+                        :show-filters="true"
+                        placeholder="Search models..."
+                    />
                 </div>
             </div>
         </div>
@@ -352,8 +380,9 @@ const toggleWebSearchCompatibility = (modelId) => {
                 <div class="flex items-start gap-2">
                     <Info :size="16" class="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                     <div class="text-xs text-blue-700 dark:text-blue-300">
-                        <p class="font-medium mb-1">About Web Search Models</p>
-                        <p>Models with web search capability (🌐) can fetch and analyze content from URLs in real-time. This is required for Job Analysis (URL mode) and Company Research tasks.</p>
+                        <p class="font-medium mb-1">About Web Search & Custom Models</p>
+                        <p class="mb-2">Models with web search capability (🌐) can fetch and analyze content from URLs in real-time. This is required for Job Analysis (URL mode) and Company Research tasks.</p>
+                        <p class="text-xs">Models from Anthropic, OpenAI, Perplexity, and xAI support native web search. You can also add custom or experimental models manually if they're not yet in the main list.</p>
                     </div>
                 </div>
             </div>

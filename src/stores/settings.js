@@ -1,7 +1,10 @@
 import { defineStore } from 'pinia'
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch, toRefs, ref } from 'vue'
+import { fetchAvailableModels, RECOMMENDED_MODELS } from '../services/ai'
 
 const STORAGE_KEY = 'app-lycan-ui-settings'
+const MODELS_CACHE_KEY = 'app-lycan-models-cache'
+const CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 /**
  * AI Command types that can have their own model settings
@@ -56,6 +59,12 @@ const defaultSettings = () => ({
 export const useSettingsStore = defineStore('settings', () => {
     const state = reactive(defaultSettings())
 
+    // Dynamic models state
+    const availableModels = ref([])
+    const isLoadingModels = ref(false)
+    const modelsLastFetched = ref(null)
+    const modelsFetchError = ref(null)
+
     const loadFromStorage = () => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY)
@@ -75,6 +84,39 @@ export const useSettingsStore = defineStore('settings', () => {
             }
         } catch (e) {
             console.warn('Failed to load settings, using defaults', e)
+        }
+    }
+
+    const loadModelsFromCache = () => {
+        try {
+            const cached = localStorage.getItem(MODELS_CACHE_KEY)
+            if (cached) {
+                const { models, timestamp } = JSON.parse(cached)
+                const now = Date.now()
+
+                // Check if cache is still valid (24 hours)
+                if (now - timestamp < CACHE_DURATION_MS) {
+                    availableModels.value = models
+                    modelsLastFetched.value = timestamp
+                    return true
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load models from cache', e)
+        }
+        return false
+    }
+
+    const saveModelsToCache = (models) => {
+        try {
+            const timestamp = Date.now()
+            localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({
+                models,
+                timestamp
+            }))
+            modelsLastFetched.value = timestamp
+        } catch (e) {
+            console.warn('Failed to cache models', e)
         }
     }
 
@@ -150,14 +192,86 @@ export const useSettingsStore = defineStore('settings', () => {
         return WEB_SEARCH_COMMANDS.includes(commandType)
     }
 
+    /**
+     * Fetch available models from OpenRouter API
+     */
+    const fetchModels = async (force = false) => {
+        // Don't fetch if already loading
+        if (isLoadingModels.value) {
+            return
+        }
+
+        // Check if we need to fetch (force or cache expired)
+        if (!force && loadModelsFromCache()) {
+            return
+        }
+
+        // Need API key to fetch
+        if (!state.openRouterKey) {
+            console.warn('No API key configured, using fallback models')
+            availableModels.value = RECOMMENDED_MODELS
+            return
+        }
+
+        isLoadingModels.value = true
+        modelsFetchError.value = null
+
+        try {
+            const models = await fetchAvailableModels(state.openRouterKey)
+            availableModels.value = models
+            saveModelsToCache(models)
+        } catch (error) {
+            console.error('Failed to fetch models:', error)
+            modelsFetchError.value = error.message
+
+            // Use fallback models on error
+            if (availableModels.value.length === 0) {
+                availableModels.value = RECOMMENDED_MODELS
+            }
+        } finally {
+            isLoadingModels.value = false
+        }
+    }
+
+    /**
+     * Refresh models (force fetch from API)
+     */
+    const refreshModels = async () => {
+        return fetchModels(true)
+    }
+
+    /**
+     * Get cache age in hours
+     */
+    const getCacheAge = () => {
+        if (!modelsLastFetched.value) return null
+        const ageMs = Date.now() - modelsLastFetched.value
+        return Math.floor(ageMs / (60 * 60 * 1000))
+    }
+
+    // Initialize: load from cache or fetch
+    loadModelsFromCache()
+    if (availableModels.value.length === 0) {
+        // No cache, use fallback immediately and fetch in background
+        availableModels.value = RECOMMENDED_MODELS
+        fetchModels()
+    }
+
     return {
         ...toRefs(state),
+        availableModels,
+        isLoadingModels,
+        modelsLastFetched,
+        modelsFetchError,
         resetSettings,
         getModelForTask,
         setModelForTask,
         addCustomModel,
         removeCustomModel,
         updateCustomModel,
-        commandRequiresWebSearch
+        commandRequiresWebSearch,
+        fetchModels,
+        refreshModels,
+        getCacheAge
     }
 })

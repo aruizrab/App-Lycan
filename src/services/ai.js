@@ -1,8 +1,14 @@
 import { OpenRouter } from '@openrouter/sdk'
 
 /**
- * List of known web-search compatible models on OpenRouter
- * These models can perform real-time web searches
+ * Providers that support native web search according to OpenRouter docs
+ * https://openrouter.ai/docs/guides/features/plugins/web-search
+ */
+const WEB_SEARCH_PROVIDERS = ['anthropic', 'openai', 'perplexity', 'x-ai']
+
+/**
+ * Legacy hardcoded models - kept for fallback if API fetch fails
+ * @deprecated Use fetchAvailableModels() instead
  */
 export const WEB_SEARCH_MODELS = [
     { id: 'perplexity/sonar-pro', name: 'Perplexity Sonar Pro', webSearchCompatible: true },
@@ -13,7 +19,7 @@ export const WEB_SEARCH_MODELS = [
 ]
 
 /**
- * List of recommended general-purpose models
+ * @deprecated Use fetchAvailableModels() instead
  */
 export const RECOMMENDED_MODELS = [
     { id: 'openai/gpt-4o', name: 'GPT-4o', webSearchCompatible: false },
@@ -26,12 +32,70 @@ export const RECOMMENDED_MODELS = [
 ]
 
 /**
+ * Determine if a model supports web search based on its provider
+ */
+export const determineWebSearchCapability = (modelId) => {
+    const provider = modelId.split('/')[0]?.toLowerCase()
+    return WEB_SEARCH_PROVIDERS.includes(provider)
+}
+
+/**
+ * Fetch available models from OpenRouter API
+ * @param {string} apiKey - OpenRouter API key
+ * @returns {Promise<Array>} Array of model objects with { id, name, webSearchCompatible, provider, contextLength, pricing }
+ */
+export const fetchAvailableModels = async (apiKey) => {
+    try {
+        if (!apiKey) {
+            throw new Error('API key is required to fetch models')
+        }
+
+        const client = createClient(apiKey)
+        const response = await client.models.list()
+
+        if (!response || !response.data) {
+            throw new Error('Invalid response from OpenRouter API')
+        }
+
+        // Transform API response to our model format
+        return response.data.map(model => {
+            const provider = model.id.split('/')[0]
+            return {
+                id: model.id,
+                name: model.name,
+                webSearchCompatible: determineWebSearchCapability(model.id),
+                provider: provider,
+                contextLength: model.contextLength || 0,
+                pricing: {
+                    prompt: parseFloat(model.pricing?.prompt || 0),
+                    completion: parseFloat(model.pricing?.completion || 0)
+                }
+            }
+        })
+    } catch (error) {
+        console.error('Failed to fetch models from OpenRouter:', error)
+        throw error
+    }
+}
+
+/**
  * Check if a model supports web search
  */
-export const isWebSearchCompatible = (modelId, customModels = []) => {
-    const allModels = [...RECOMMENDED_MODELS, ...customModels]
-    const model = allModels.find(m => m.id === modelId)
-    return model?.webSearchCompatible || false
+export const isWebSearchCompatible = (modelId, availableModels = [], customModels = []) => {
+    // Check in available models first
+    const model = availableModels.find(m => m.id === modelId)
+    if (model) {
+        return model.webSearchCompatible || false
+    }
+
+    // Check in custom models
+    const customModel = customModels.find(m => m.id === modelId)
+    if (customModel) {
+        return customModel.webSearchCompatible || false
+    }
+
+    // Fallback: determine by provider
+    return determineWebSearchCapability(modelId)
 }
 
 /**

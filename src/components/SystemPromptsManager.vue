@@ -157,7 +157,7 @@ const truncateContent = (content, maxLength = 150) => {
 <template>
     <div class="h-full flex flex-col">
         <!-- Tabs -->
-        <div class="flex flex-wrap gap-1 p-2 bg-gray-50 dark:bg-gray-750 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex flex-wrap gap-1 p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
             <button
                 v-for="tab in TABS"
                 :key="tab.id"
@@ -264,7 +264,7 @@ const truncateContent = (content, maxLength = 150) => {
                 >
                     <!-- Prompt Header -->
                     <div
-                        class="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750"
+                        class="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
                         @click="toggleExpand(prompt.id)"
                     >
                         <div class="flex items-center gap-3 min-w-0">
@@ -342,7 +342,7 @@ const truncateContent = (content, maxLength = 150) => {
 
                         <!-- View Mode -->
                         <div v-else class="p-4">
-                            <pre class="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono bg-gray-50 dark:bg-gray-750 p-3 rounded max-h-64 overflow-y-auto">{{ prompt.content }}</pre>
+                            <pre class="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono bg-gray-50 dark:bg-gray-900 p-3 rounded max-h-64 overflow-y-auto">{{ prompt.content }}</pre>
 
                             <div class="flex items-center gap-2 mt-4">
                                 <button
