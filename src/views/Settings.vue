@@ -53,57 +53,6 @@
         <!-- General Settings Tab -->
         <div v-if="activeTab === 'general'" class="p-6 space-y-6">
           <div>
-            <h3 class="text-lg font-medium mb-4">API Configuration</h3>
-            
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium mb-2">OpenRouter API Key</label>
-                <div class="flex gap-2">
-                  <input
-                    v-model="apiKey"
-                    :type="showApiKey ? 'text' : 'password'"
-                    class="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
-                    placeholder="sk-or-v1-..."
-                  />
-                  <button
-                    @click="showApiKey = !showApiKey"
-                    class="px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
-                  >
-                    <EyeIcon v-if="!showApiKey" class="w-5 h-5" />
-                    <EyeOffIcon v-else class="w-5 h-5" />
-                  </button>
-                </div>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Get your API key from <a href="https://openrouter.ai/keys" target="_blank" class="text-blue-500 hover:underline">openrouter.ai/keys</a>
-                </p>
-              </div>
-
-              <div class="flex items-center justify-between">
-                <div>
-                  <label class="block text-sm font-medium">Enable AI Features</label>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">Toggle AI assistance across the application</p>
-                </div>
-                <button
-                  @click="toggleAiEnabled"
-                  :class="[
-                    'relative w-12 h-6 rounded-full transition-colors',
-                    aiEnabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                  ]"
-                >
-                  <span
-                    :class="[
-                      'absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform',
-                      aiEnabled ? 'translate-x-6' : ''
-                    ]"
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <hr class="border-gray-200 dark:border-gray-700" />
-
-          <div>
             <h3 class="text-lg font-medium mb-4">Data Management</h3>
             
             <div class="space-y-4">

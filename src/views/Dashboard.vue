@@ -4,11 +4,16 @@ import { useCoverLetterStore } from '../stores/coverLetter'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useRouter, useRoute } from 'vue-router'
 import { ref, computed, watch } from 'vue'
+import { useSettingsModal } from '../composables/useSettingsModal'
 import DocumentGrid from '../components/DocumentGrid.vue'
 import DocumentList from '../components/DocumentList.vue'
 import ActionMenu from '../components/ActionMenu.vue'
 import CreateImportModal from '../components/CreateImportModal.vue'
 import WorkspaceContextPanel from '../components/WorkspaceContextPanel.vue'
+import WorkspaceContextModal from '../components/WorkspaceContextModal.vue'
+import SettingsModal from '../components/SettingsModal.vue'
+import FloatingAiChat from '../components/FloatingAiChat.vue'
+import AiAssistantButton from '../components/AiAssistantButton.vue'
 import { 
   Plus, 
   Upload, 
@@ -26,8 +31,7 @@ import {
   ChevronDown,
   ChevronRight,
   Briefcase,
-  User,
-  Settings
+  User
 } from 'lucide-vue-next'
 
 const store = useCvStore()
@@ -35,10 +39,25 @@ const clStore = useCoverLetterStore()
 const workspaceStore = useWorkspaceStore()
 const router = useRouter()
 const route = useRoute()
+const { isSettingsModalOpen, openSettingsModal, closeSettingsModal } = useSettingsModal()
 
 const viewMode = ref('grid') // 'grid' or 'list'
 const activeTab = ref('cv') // 'cv' or 'cover-letter'
 const showWorkspaceContext = ref(true) // Show AI context panel
+const showAiPanel = ref(false) // AI Chat panel
+
+// Watch for AI chat open signal from navigation
+watch(
+  () => route.query.openAiChat,
+  (shouldOpen) => {
+    if (shouldOpen === 'true') {
+      showAiPanel.value = true
+      // Remove the query param to clean up URL
+      router.replace({ query: { ...route.query, openAiChat: undefined } })
+    }
+  },
+  { immediate: true }
+)
 
 // Theme Logic
 const isDark = ref(document.documentElement.classList.contains('dark'))
@@ -66,6 +85,12 @@ const workspaceNameInput = ref(null)
 
 // Drag and drop
 const isDragging = ref(false)
+
+// Workspace context modal
+const showContextModal = ref(false)
+const contextModalMode = ref('view') // 'view', 'edit', 'create'
+const selectedContextKey = ref('')
+const selectedContextContent = ref('')
 
 // Set current workspace from route
 watch(
@@ -377,6 +402,59 @@ const handleContextRegenerate = (type) => {
   // Open AI assistant to regenerate
   console.log('Regenerate context:', type)
 }
+
+// Custom context handlers
+const handleViewCustomContext = (contextKey) => {
+  const ws = workspaceStore.workspaces[workspaceStore.currentWorkspace]
+  if (!ws || !ws[contextKey]) return
+  
+  selectedContextKey.value = contextKey
+  selectedContextContent.value = ws[contextKey].content || ''
+  contextModalMode.value = 'view'
+  showContextModal.value = true
+}
+
+const handleEditCustomContext = (contextKey) => {
+  const ws = workspaceStore.workspaces[workspaceStore.currentWorkspace]
+  if (!ws || !ws[contextKey]) return
+  
+  selectedContextKey.value = contextKey
+  selectedContextContent.value = ws[contextKey].content || ''
+  contextModalMode.value = 'edit'
+  showContextModal.value = true
+}
+
+const handleDeleteCustomContext = (contextKey) => {
+  const ws = workspaceStore.workspaces[workspaceStore.currentWorkspace]
+  if (!ws || !ws[contextKey]) return
+  
+  // Delete the custom context entry
+  ws[contextKey] = null
+  ws.metadata.lastModified = Date.now()
+  workspaceStore.save()
+}
+
+const handleAddCustomContext = () => {
+  selectedContextKey.value = ''
+  selectedContextContent.value = ''
+  contextModalMode.value = 'create'
+  showContextModal.value = true
+}
+
+const handleSaveCustomContext = ({ key, content }) => {
+  const ws = workspaceStore.workspaces[workspaceStore.currentWorkspace]
+  if (!ws) return
+  
+  // Create or update the context entry
+  const existing = ws[key]
+  ws[key] = {
+    content: content,
+    createdAt: existing?.createdAt || Date.now(),
+    lastModified: Date.now()
+  }
+  ws.metadata.lastModified = Date.now()
+  workspaceStore.save()
+}
 </script>
 
 <template>
@@ -449,6 +527,7 @@ const handleContextRegenerate = (type) => {
         </div>
 
         <div class="flex gap-4">
+          <!-- User Profile -->
           <button 
             @click="router.push('/profile')" 
             class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -457,14 +536,13 @@ const handleContextRegenerate = (type) => {
             <User :size="20" />
           </button>
           
-          <button 
-            @click="router.push('/settings')" 
-            class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="AI Settings"
-          >
-            <Settings :size="20" />
-          </button>
+          <!-- AI Assistant Toggle -->
+          <AiAssistantButton 
+            :active="showAiPanel"
+            @click="showAiPanel = !showAiPanel"
+          />
           
+          <!-- Theme Toggle -->
           <button @click="toggleTheme" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <Moon v-if="isDark" :size="20" />
             <Sun v-else :size="20" />
@@ -519,6 +597,10 @@ const handleContextRegenerate = (type) => {
             @edit="handleContextEdit"
             @delete="handleContextDelete"
             @regenerate="handleContextRegenerate"
+            @viewCustomContext="handleViewCustomContext"
+            @editCustomContext="handleEditCustomContext"
+            @deleteCustomContext="handleDeleteCustomContext"
+            @addCustomContext="handleAddCustomContext"
           />
         </div>
       </div>
@@ -565,6 +647,29 @@ const handleContextRegenerate = (type) => {
         @close="showModal = false"
         @submit="handleModalSubmit"
       />
+
+      <!-- Settings Modal -->
+      <SettingsModal
+        :is-open="isSettingsModalOpen"
+        @close="closeSettingsModal"
+      />
+
+      <!-- Workspace Context Modal -->
+      <WorkspaceContextModal
+        :is-open="showContextModal"
+        :mode="contextModalMode"
+        :context-key="selectedContextKey"
+        :context-content="selectedContextContent"
+        @close="showContextModal = false"
+        @save="handleSaveCustomContext"
+        @delete="handleDeleteCustomContext"
+      />
     </div>
+
+    <!-- Floating AI Chat Panel -->
+    <FloatingAiChat
+      v-if="showAiPanel"
+      @close="showAiPanel = false"
+    />
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
+import DeletionConfirmDialog from './components/DeletionConfirmDialog.vue'
 
 // Initialize state from localStorage or system preference
 const getInitialTheme = () => {
@@ -31,5 +32,6 @@ watch(isDark, (val) => {
 
 <template>
   <router-view></router-view>
+  <DeletionConfirmDialog />
 </template>
 

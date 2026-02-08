@@ -63,6 +63,7 @@
           v-for="model in filteredModels"
           :key="model.id"
           class="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+          :title="model.description || ''"
           @mousedown.prevent="selectModel(model)"
         >
           <div class="flex items-center justify-between">
@@ -78,7 +79,7 @@
             <div class="text-xs text-gray-400 dark:text-gray-500 ml-2">
               <div>{{ formatContextLength(model.contextLength) }}</div>
               <div v-if="model.pricing">
-                ${{ (model.pricing.prompt * 1000).toFixed(3) }}/${{ (model.pricing.completion * 1000).toFixed(3) }}
+                ${{ (model.pricing.prompt * 1000000).toFixed(2) }}/${{ (model.pricing.completion * 1000000).toFixed(2) }} 1M
               </div>
             </div>
           </div>

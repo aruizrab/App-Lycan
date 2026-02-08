@@ -17,14 +17,11 @@
             <UserIcon class="w-5 h-5" />
           </button>
           
-          <!-- AI Settings -->
-          <button
-            @click="router.push('/settings')"
-            class="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title="AI Settings"
-          >
-            <SettingsIcon class="w-5 h-5" />
-          </button>
+          <!-- AI Assistant button -->
+          <AiAssistantButton 
+            :active="showAiPanel"
+            @click="showAiPanel = !showAiPanel"
+          />
           
           <!-- Theme toggle -->
           <button
@@ -114,18 +111,34 @@
         @close="closeModal"
         @submit="handleModalSubmit"
       />
+
+      <!-- Settings Modal -->
+      <SettingsModal
+        :is-open="isSettingsModalOpen"
+        @close="closeSettingsModal"
+      />
     </div>
+
+    <!-- Floating AI Chat Panel -->
+    <FloatingAiChat
+      v-if="showAiPanel"
+      @close="showAiPanel = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useWorkspaceStore } from '../stores/workspace'
+import { useSettingsModal } from '../composables/useSettingsModal'
 import DocumentGrid from '../components/DocumentGrid.vue'
 import DocumentList from '../components/DocumentList.vue'
 import ActionMenu from '../components/ActionMenu.vue'
 import CreateImportModal from '../components/CreateImportModal.vue'
+import SettingsModal from '../components/SettingsModal.vue'
+import FloatingAiChat from '../components/FloatingAiChat.vue'
+import AiAssistantButton from '../components/AiAssistantButton.vue'
 import { 
   LayoutGrid as LayoutGridIcon, 
   List as ListIcon, 
@@ -138,17 +151,32 @@ import {
   Trash2,
   Moon as MoonIcon,
   Sun as SunIcon,
-  User as UserIcon,
-  Settings as SettingsIcon
+  User as UserIcon
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const route = useRoute()
 const workspaceStore = useWorkspaceStore()
+const { isSettingsModalOpen, openSettingsModal, closeSettingsModal } = useSettingsModal()
 
 const viewMode = ref('grid')
+const showAiPanel = ref(false)
 const isModalOpen = ref(false)
 const modalMode = ref('create')
 const suggestedName = ref('')
+
+// Watch for AI chat open signal from navigation
+watch(
+  () => route.query.openAiChat,
+  (shouldOpen) => {
+    if (shouldOpen === 'true') {
+      showAiPanel.value = true
+      // Remove the query param to clean up URL
+      router.replace({ query: { ...route.query, openAiChat: undefined } })
+    }
+  },
+  { immediate: true }
+)
 
 // Theme
 const isDark = ref(document.documentElement.classList.contains('dark'))
@@ -305,3 +333,14 @@ const viewModeButtonClass = (mode) => {
     : 'hover:bg-gray-300 dark:hover:bg-gray-600'
 }
 </script>
+
+<style scoped>
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.3s ease;
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+</style>

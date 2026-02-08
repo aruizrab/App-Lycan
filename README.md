@@ -29,22 +29,40 @@
 
 ### 🤖 Advanced AI Features
 
-#### OpenRouter SDK Integration
+#### Unified AI Chat
+- **Single Interface**: One consistent AI chat accessible from Dashboard, Document Editor, and Workspace views.
+- **Persistent History**: Chat sessions saved automatically when you send a message, accessible from any view.
 - **Streaming Responses**: Real-time AI responses with smooth streaming interface.
-- **Web Search Models**: Support for Perplexity Sonar and Gemini models with live web search capabilities.
-- **JSON Schema Enforcement**: Structured outputs for reliable data extraction.
+- **Tool Calling**: AI can directly create/edit CVs and cover letters via function calling.
 
-#### 5 AI Command Types
-1. **📋 /analyze** - Job Analysis: Paste job descriptions or URLs to extract requirements, qualifications, and keywords.
-2. **🎯 /match** - Match Report: Get detailed compatibility analysis between your profile and the job (with customizable threshold).
-3. **🔍 /research** - Company Research: Automated company investigation with legitimacy scoring and red flag detection.
-4. **📝 /cv** - CV Generation: AI-crafted CVs optimized for the specific role.
-5. **✉️ /cover** - Cover Letter: Personalized cover letters leveraging job context and your profile.
+#### OpenRouter SDK Integration
+- **300+ Models**: Access to GPT-4, Claude, Gemini, Perplexity, and more via single API key.
+- **Web Search Plugin**: Live web search capabilities for job URL analysis and company research.
+- **Function Calling**: Structured tool execution for document manipulation.
+
+#### Slash Commands
+Type `/` in the chat to access specialized commands with autocomplete:
+
+| Command     | Purpose                                | Web Search |
+| ----------- | -------------------------------------- | ---------- |
+| `/analyze`  | Extract requirements from job postings | Yes (URLs) |
+| `/match`    | Compatibility analysis vs your profile | No         |
+| `/research` | Company investigation & red flags      | Yes        |
+| `/cv`       | Generate tailored CV for the role      | No         |
+| `/cover`    | Generate personalized cover letter     | No         |
 
 #### User Profile System
 - **Global Professional Profile**: Rich-text editor for detailed professional experience.
 - **Context for AI**: Your profile serves as the foundation for all AI-generated content.
 - **Import/Export**: Portable JSON format for backup and sharing.
+
+#### AI Tool Calling
+The AI can execute actions directly through function calling:
+- `create_cv` / `update_cv` - Create or modify CV documents
+- `create_cover_letter` / `update_cover_letter` - Create or modify cover letters
+- `analyze_job_posting` - Extract job requirements
+- `research_company` - Investigate company details
+- `match_profile_to_job` - Generate compatibility report
 
 #### Workspace-Scoped AI Context
 Each workspace maintains:
@@ -139,26 +157,36 @@ Each workspace maintains:
 ```
 cv-maker/
 ├── src/
-│   ├── components/     # Vue components
-│   │   ├── AiStreamingChat.vue
+│   ├── components/        # Vue components
+│   │   ├── AiStreamingChat.vue     # Unified AI chat with slash commands
 │   │   ├── WorkspaceContextPanel.vue
+│   │   ├── CvForm.vue / CvPreview.vue
+│   │   ├── CoverLetterForm.vue / CoverLetterPreview.vue
 │   │   ├── ModelSettings.vue
 │   │   └── SystemPromptsManager.vue
-│   ├── views/          # Page views
-│   │   ├── WorkspaceDashboard.vue
-│   │   ├── Dashboard.vue
-│   │   ├── DocumentEditor.vue
+│   ├── views/             # Page views
+│   │   ├── Dashboard.vue           # Main dashboard with AI panel
+│   │   ├── DocumentEditor.vue      # CV/Letter editor with AI
+│   │   ├── WorkspaceDashboard.vue  # Workspace view with AI
 │   │   ├── UserProfile.vue
 │   │   └── Settings.vue
-│   ├── stores/         # Pinia stores
-│   │   ├── workspace.js
-│   │   ├── userProfile.js
-│   │   ├── settings.js
+│   ├── stores/            # Pinia stores (state management)
+│   │   ├── chat.js        # Unified AI chat sessions
+│   │   ├── workspace.js   # Workspace with AI context
+│   │   ├── cv.js          # CV document CRUD
+│   │   ├── coverLetter.js # Cover letter CRUD
+│   │   ├── userProfile.js # User's professional profile
+│   │   ├── settings.js    # App settings & API keys
 │   │   └── systemPrompts.js
-│   ├── services/       # Business logic
-│   │   ├── ai.js       # OpenRouter SDK integration
-│   │   └── aiCommands.js
-│   └── router/         # Vue Router
+│   ├── services/          # Business logic & APIs
+│   │   ├── ai.js          # OpenRouter SDK integration
+│   │   ├── aiToolkit.js   # Tool definitions for function calling
+│   │   └── aiCommands.js  # Slash command implementations
+│   ├── composables/       # Vue composables
+│   └── router/            # Vue Router
+├── docs/
+│   └── ARCHITECTURE.md    # Architecture decisions & design patterns
+├── AGENTS.md              # Guide for AI coding agents
 └── public/
 ```
 
@@ -203,6 +231,12 @@ cv-maker/
 ## 🤝 Contributing
 
 Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) for details on our code of conduct and the process for submitting pull requests.
+
+### For AI Agents / LLMs
+
+If you're an AI coding assistant working on this project:
+- Start with [AGENTS.md](AGENTS.md) for a quick reference guide
+- See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for design decisions and patterns
 
 ## 📄 License
 

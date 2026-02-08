@@ -1,0 +1,49 @@
+{
+    "type": "object",
+    "description": "Cover Letter document data structure. Uses deep merge, so only provide fields you want to set or change.",
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Cover Letter document name/identifier"
+        },
+        "data": {
+            "type": "object",
+            "description": "Cover Letter data content",
+            "properties": {
+                "applicantAddress": {
+                    "type": "string",
+                    "description": "Applicant's address (multi-line text)"
+                },
+                "companyAddress": {
+                    "type": "string",
+                    "description": "Company/recipient address (multi-line text)"
+                },
+                "date": {
+                    "type": "string",
+                    "description": "Date in YYYY-MM-DD format (e.g., '2024-01-15')"
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Cover letter title/subject"
+                },
+                "subtitle": {
+                    "type": "string",
+                    "description": "Cover letter subtitle"
+                },
+                "body": {
+                    "type": "string",
+                    "description": "Main body content (rich text/HTML)"
+                },
+                "signatureImage": {
+                    "type": "string",
+                    "description": "Signature image URL"
+                },
+                "signatureName": {
+                    "type": "string",
+                    "description": "Typed signature name"
+                }
+            }
+        }
+    },
+    "additionalProperties": true
+}

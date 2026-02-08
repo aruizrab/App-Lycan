@@ -4,17 +4,16 @@ import CvPreview from '../components/CvPreview.vue'
 import CoverLetterForm from '../components/CoverLetterForm.vue'
 import CoverLetterPreview from '../components/CoverLetterPreview.vue'
 import AiStreamingChat from '../components/AiStreamingChat.vue'
+import SettingsModal from '../components/SettingsModal.vue'
 import { useCvStore } from '../stores/cv'
 import { useCoverLetterStore } from '../stores/coverLetter'
 import { useWorkspaceStore } from '../stores/workspace'
-import { useCvMetaStore } from '../stores/cvMeta'
-import { Printer, Moon, Sun, ArrowLeft, FileText, Settings, Sparkles, Send, RotateCcw, RotateCw, X, MessageSquare, Plus, Trash2, ChevronLeft, Download, Edit, Mail, Briefcase, Building, User } from 'lucide-vue-next'
-import { ref, onMounted, nextTick, watch, computed } from 'vue'
+import { useSettingsModal } from '../composables/useSettingsModal'
+import { Printer, Moon, Sun, ArrowLeft, FileText, Settings, Sparkles, RotateCcw, RotateCw, X, Download, Edit } from 'lucide-vue-next'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
 import { storeToRefs } from 'pinia'
-import { performCvAiAction } from '../services/ai'
-import { executeAiCommand, executeCvCommand, AI_COMMANDS } from '../services/aiCommands'
 
 const props = defineProps({
   documentType: {
@@ -27,250 +26,48 @@ const props = defineProps({
 const cvStore = useCvStore()
 const clStore = useCoverLetterStore()
 const workspaceStore = useWorkspaceStore()
-const metaStore = useCvMetaStore()
+const { isSettingsModalOpen, openSettingsModal, closeSettingsModal } = useSettingsModal()
 const route = useRoute()
 const router = useRouter()
 
 const isCv = computed(() => props.documentType === 'cv')
 const store = computed(() => isCv.value ? cvStore : clStore)
 const currentDocument = computed(() => isCv.value ? cvStore.cv : clStore.coverLetter)
-const currentName = computed(() => isCv.value ? route.params.name : route.params.name)
 
 const docName = ref('')
 const nameError = ref('')
 const showSettings = ref(false)
 const showAiPanel = ref(false)
-const aiPrompt = ref('')
-const isAiLoading = ref(false)
-const systemInstructions = ref('')
-const chatContainer = ref(null)
-const aiPanelView = ref('chat') // 'chat', 'list', 'settings', 'commands'
 
-// New AI streaming state
-const activeAiCommand = ref(null)
-const streamingContent = ref('')
-const aiError = ref(null)
-const pendingAiResult = ref(null)
-const showApplyButton = ref(false)
+// Watch for AI chat open signal from navigation
+watch(
+  () => route.query.openAiChat,
+  (shouldOpen) => {
+    if (shouldOpen === 'true') {
+      showAiPanel.value = true
+      // Remove the query param to clean up URL
+      router.replace({ query: { ...route.query, openAiChat: undefined } })
+    }
+  },
+  { immediate: true }
+)
 
 const settingsStore = useSettingsStore()
-const { atsMode, showPictureInAts, uppercaseName, uppercaseRole, uppercaseHeaders, uppercaseCoverLetterTitle, picturePosition, openRouterKey, openRouterModel, customModels, availableModels } = storeToRefs(settingsStore)
+const { atsMode, showPictureInAts, uppercaseName, uppercaseRole, uppercaseHeaders, uppercaseCoverLetterTitle, picturePosition } = storeToRefs(settingsStore)
 const canUndo = computed(() => isCv.value ? cvStore.canUndo : false)
 const canRedo = computed(() => isCv.value ? cvStore.canRedo : false)
 
-const allModels = computed(() => {
-  return [...availableModels.value, ...customModels.value]
-})
-
-const newModelId = ref('')
-
-const addCustomModel = () => {
-  if (newModelId.value) {
-    const modelId = newModelId.value.trim()
-    const existingModel = allModels.value.find(m => m.id === modelId)
-    
-    if (!existingModel) {
-      // Add to custom models using settings store
-      settingsStore.addCustomModel({
-        id: modelId,
-        name: modelId,
-        webSearchCompatible: false
-      })
-      openRouterModel.value = modelId
-    }
-    newModelId.value = ''
-  }
-}
-
-// AI Chat Logic (only for CV)
-const currentChatId = ref(null)
-
-const chats = computed(() => {
-  if (!isCv.value || !cvStore.currentCvId) return []
-  return metaStore.getChats(cvStore.currentCvId)
-})
-
-const currentChat = computed(() => {
-  if (!currentChatId.value) return null
-  return chats.value.find(c => c.id === currentChatId.value)
-})
-
-const aiMessages = computed(() => {
-  return currentChat.value ? currentChat.value.messages : []
-})
-
-const createNewChat = () => {
-  if (!isCv.value || !cvStore.currentCvId) return
-  const chat = metaStore.createChat(cvStore.currentCvId, `Chat ${chats.value.length + 1}`)
-  currentChatId.value = chat.id
-  aiPanelView.value = 'chat'
-}
-
-const selectChat = (chatId) => {
-  currentChatId.value = chatId
-  aiPanelView.value = 'chat'
-}
-
-const deleteChat = (chatId) => {
-  if (!isCv.value || !cvStore.currentCvId) return
-  metaStore.deleteChat(cvStore.currentCvId, chatId)
-  if (currentChatId.value === chatId) {
-    currentChatId.value = null
-    if (chats.value.length > 0) {
-      currentChatId.value = chats.value[0].id
-    } else {
-      createNewChat()
-    }
-  }
-}
-
 const toggleAiPanel = () => {
   showAiPanel.value = !showAiPanel.value
-  if (showAiPanel.value && !currentChatId.value && isCv.value) {
-    if (chats.value.length > 0) {
-      currentChatId.value = chats.value[0].id
-    } else {
-      createNewChat()
-    }
-  }
 }
 
-// New AI Commands handling
-const handleAiCommandSelect = (commandId) => {
-    activeAiCommand.value = commandId
-    aiError.value = null
-    streamingContent.value = ''
-    showApplyButton.value = false
-    pendingAiResult.value = null
-}
-
-const handleAiCommandSend = async ({ command, input, isUrl }) => {
-    if (isAiLoading.value) return
-
-    isAiLoading.value = true
-    aiError.value = null
-    streamingContent.value = ''
-    showApplyButton.value = false
-
-    // Add user message to chat
-    if (isCv.value && currentChatId.value && input) {
-        metaStore.addMessage(cvStore.currentCvId, currentChatId.value, {
-            role: 'user',
-            content: `[${command}] ${input}`
-        })
-    }
-
-    try {
-        // For CV generation, use the JSON-returning function
-        if (command === 'cv') {
-            const result = await executeCvCommand(input, cvStore.cv, {
-                additionalContext: { cvData: cvStore.cv }
-            })
-            
-            pendingAiResult.value = result
-            streamingContent.value = result.message || 'CV modifications ready to apply.'
-            showApplyButton.value = true
-
-            if (isCv.value && currentChatId.value) {
-                metaStore.addMessage(cvStore.currentCvId, currentChatId.value, {
-                    role: 'assistant',
-                    content: result.message || 'CV modifications generated.'
-                })
-            }
-        } else {
-            // For other commands, use streaming
-            await executeAiCommand(command, input, {
-                additionalContext: isCv.value ? { cvData: cvStore.cv } : { coverLetterData: clStore.coverLetter },
-                onChunk: (chunk, fullContent) => {
-                    streamingContent.value = fullContent
-                },
-                onComplete: (result) => {
-                    pendingAiResult.value = result
-
-                    // For cover letter command, show apply button
-                    if (command === 'cover') {
-                        showApplyButton.value = true
-                    }
-
-                    // Check if we should offer match report
-                    if (result.shouldOfferMatch) {
-                        // Could show a prompt here
-                    }
-
-                    if (currentChatId.value && isCv.value) {
-                        metaStore.addMessage(cvStore.currentCvId, currentChatId.value, {
-                            role: 'assistant',
-                            content: result.content
-                        })
-                    }
-                },
-                onError: (error) => {
-                    aiError.value = error.message
-                    if (currentChatId.value && isCv.value) {
-                        metaStore.addMessage(cvStore.currentCvId, currentChatId.value, {
-                            role: 'error',
-                            content: error.message
-                        })
-                    }
-                }
-            })
-        }
-    } catch (e) {
-        aiError.value = e.message
-        if (currentChatId.value && isCv.value) {
-            metaStore.addMessage(cvStore.currentCvId, currentChatId.value, {
-                role: 'error',
-                content: e.message
-            })
-        }
-    } finally {
-        isAiLoading.value = false
-    }
-}
-
-const handleAiApply = () => {
-    if (!pendingAiResult.value) return
-
-    const command = activeAiCommand.value
-
-    if (command === 'cv' && pendingAiResult.value.cvData) {
-        cvStore.applyAiChanges(pendingAiResult.value.cvData)
-    } else if (command === 'cover' && pendingAiResult.value.content) {
-        // Apply cover letter body
-        clStore.coverLetter.body = pendingAiResult.value.content
-    }
-
-    showApplyButton.value = false
-    pendingAiResult.value = null
-    streamingContent.value = ''
-}
-
-const handleAiSubmit = async () => {
-    if (!aiPrompt.value.trim() || isAiLoading.value || !currentChatId.value) return
-
-    // Legacy CV-only quick chat (for backward compatibility)
-    if (!isCv.value) return
-    
-    const prompt = aiPrompt.value
-    metaStore.addMessage(cvStore.currentCvId, currentChatId.value, { role: 'user', content: prompt })
-    aiPrompt.value = ''
-    isAiLoading.value = true
-
-    try {
-        const result = await performCvAiAction(
-            openRouterKey.value,
-            openRouterModel.value,
-            cvStore.cv,
-            prompt,
-            systemInstructions.value
-        )
-        
-        cvStore.applyAiChanges(result.cvData)
-        metaStore.addMessage(cvStore.currentCvId, currentChatId.value, { role: 'assistant', content: result.message })
-    } catch (e) {
-        metaStore.addMessage(cvStore.currentCvId, currentChatId.value, { role: 'error', content: e.message })
-    } finally {
-        isAiLoading.value = false
+// AI Handlers
+const handleAiApplyChanges = ({ type, result }) => {
+    if (type === 'update_cv' && result) {
+        // AI tool updated the CV - it's already applied through the store
+        // Just show a notification or refresh if needed
+    } else if (type === 'update_cover_letter' && result) {
+        // AI tool updated the cover letter
     }
 }
 
@@ -349,28 +146,7 @@ onMounted(async () => {
   }
   
   docName.value = name
-
-  // Set default AI panel view to commands
-  aiPanelView.value = 'commands'
-
-  if (isCv.value) {
-    try {
-      const res = await fetch('/ai-instructions.md')
-      systemInstructions.value = await res.text()
-    } catch (e) {
-      console.error('Failed to load AI instructions', e)
-    }
-  }
 })
-
-// Scroll to bottom of chat
-watch(aiMessages, () => {
-  nextTick(() => {
-    if (chatContainer.value) {
-      chatContainer.value.scrollTop = chatContainer.value.scrollHeight
-    }
-  })
-}, { deep: true })
 
 // Handle name change
 const updateName = () => {
@@ -645,156 +421,34 @@ const redo = () => {
 
       <!-- AI Panel (Both CV and Cover Letter) -->
       <div v-if="showAiPanel" 
-           class="w-full md:w-[var(--panel-width)] bg-white dark:bg-gray-800 border-l dark:border-gray-700 flex flex-col z-20 shadow-xl relative"
+           class="w-full md:w-[var(--panel-width)] bg-white dark:bg-gray-800 border-l dark:border-gray-700 flex flex-col z-20 shadow-xl relative h-[calc(100vh-64px)]"
            :style="{ '--panel-width': aiPanelWidth + 'px' }">
           <!-- Resize Handle -->
           <div class="hidden md:block absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 cursor-ew-resize hover:bg-purple-500/50 transition-colors z-30"
                @mousedown.prevent="startResize"></div>
-          
-          <!-- Header -->
-          <div class="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-              <div class="flex items-center gap-2">
-                  <h3 class="font-bold flex items-center gap-2 text-gray-900 dark:text-white"><Sparkles class="text-purple-500" :size="20"/> AI Assistant</h3>
-              </div>
-              <div class="flex items-center gap-1">
-                  <!-- View toggles -->
-                  <button 
-                      @click="aiPanelView = 'commands'" 
-                      :class="aiPanelView === 'commands' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600' : 'text-gray-500 dark:text-gray-400'"
-                      class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" 
-                      title="AI Commands"
-                  >
-                      <Briefcase :size="18" />
-                  </button>
-                  <button 
-                      v-if="isCv"
-                      @click="aiPanelView = 'chat'" 
-                      :class="aiPanelView === 'chat' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600' : 'text-gray-500 dark:text-gray-400'"
-                      class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" 
-                      title="Quick Chat"
-                  >
-                      <MessageSquare :size="18" />
-                  </button>
-                  <button @click="aiPanelView = 'settings'" :class="aiPanelView === 'settings' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600' : 'text-gray-500 dark:text-gray-400'" class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="AI Settings">
-                      <Settings :size="18" />
-                  </button>
-                  <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></div>
-                  <button @click="showAiPanel = false" class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"><X :size="20"/></button>
-              </div>
-          </div>
 
-          <!-- AI Commands View (New) -->
-          <div v-if="aiPanelView === 'commands'" class="flex-1 flex flex-col min-h-0">
+          <!-- Unified Chat Component -->
+          <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
               <AiStreamingChat
-                  :active-command="activeAiCommand"
-                  :is-loading="isAiLoading"
-                  :streaming-content="streamingContent"
-                  :error="aiError"
-                  :show-apply="showApplyButton"
-                  :messages="aiMessages"
-                  :additional-context="isCv ? { cvData: cvStore.cv } : { coverLetterData: clStore.coverLetter }"
-                  @select-command="handleAiCommandSelect"
-                  @send="handleAiCommandSend"
-                  @apply="handleAiApply"
-                  @clear-error="aiError = null"
+                  :context-data="isCv ? cvStore.cv : clStore.coverLetter"
+                  :context-type="isCv ? 'cv' : 'cover-letter'"
+                  :document-id="isCv ? cvStore.currentCvId : clStore.currentCoverLetterId"
+                  :show-close="true"
+                  @close="showAiPanel = false"
+                  @apply-changes="handleAiApplyChanges"
               />
-          </div>
-
-          <!-- Settings View -->
-          <div v-if="aiPanelView === 'settings'" class="flex-1 overflow-y-auto p-4 space-y-4">
-              <h4 class="font-bold text-gray-900 dark:text-white">AI Configuration</h4>
-              
-              <div>
-                  <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">OpenRouter API Key</label>
-                  <input v-model="openRouterKey" type="password" class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-purple-500 focus:ring-purple-500 border p-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="sk-or-..." />
-                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Key is stored locally in your browser.</p>
-              </div>
-
-              <div>
-                  <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Model</label>
-                  <select v-model="openRouterModel" class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-purple-500 focus:ring-purple-500 border p-2 text-sm dark:bg-gray-700 dark:text-white mb-2">
-                      <option v-for="model in availableModels" :key="model" :value="model">{{ model }}</option>
-                  </select>
-                  
-                  <div class="flex gap-2">
-                      <input v-model="newModelId" type="text" class="flex-1 rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-purple-500 focus:ring-purple-500 border p-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="Add custom model ID..." />
-                      <button @click="addCustomModel" :disabled="!newModelId" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors">
-                          <Plus :size="16" />
-                      </button>
-                  </div>
-              </div>
-          </div>
-
-          <!-- Chat List View -->
-          <div v-else-if="aiPanelView === 'list' && isCv" class="flex-1 overflow-y-auto p-4 space-y-2">
-              <button @click="createNewChat" class="w-full flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-purple-500 hover:text-purple-500 transition-colors mb-4">
-                  <Plus :size="20" /> New Chat
-              </button>
-              
-              <div v-if="chats.length === 0" class="text-center text-gray-500 dark:text-gray-400 text-sm py-4">
-                  No chats yet. Start a new one!
-              </div>
-
-              <div v-for="chat in chats" :key="chat.id" 
-                   class="group flex items-center justify-between p-3 rounded-lg border dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 cursor-pointer transition-colors"
-                   :class="{'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800': currentChatId === chat.id, 'bg-white dark:bg-gray-800': currentChatId !== chat.id}"
-                   @click="selectChat(chat.id)">
-                  <div class="flex-1 min-w-0">
-                      <h4 class="font-medium text-sm truncate text-gray-900 dark:text-white">{{ chat.title }}</h4>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">{{ new Date(chat.createdAt).toLocaleDateString() }}</p>
-                  </div>
-                  <button @click.stop="deleteChat(chat.id)" class="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Trash2 :size="16" />
-                  </button>
-              </div>
-          </div>
-
-          <!-- Chat Area (Legacy quick chat for CV) -->
-          <div v-else-if="aiPanelView === 'chat' && isCv" class="flex-1 flex flex-col min-h-0">
-            <div ref="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-4">
-                <div v-if="aiMessages.length === 0" class="text-center text-gray-500 dark:text-gray-400 text-sm mt-10">
-                    <Sparkles class="mx-auto mb-2 text-purple-300" :size="48" />
-                    <p>Ask me to improve your CV!</p>
-                    <p class="text-xs mt-2">"Fix typos", "Make it professional", "Translate to Spanish"</p>
-                </div>
-                <div v-for="(msg, idx) in aiMessages" :key="idx" 
-                    class="p-3 rounded-lg text-sm"
-                    :class="{
-                        'bg-blue-100 text-blue-900 ml-4 dark:bg-blue-900 dark:text-blue-100': msg.role === 'user',
-                        'bg-purple-50 text-purple-900 mr-4 dark:bg-purple-900/50 dark:text-purple-100': msg.role === 'assistant',
-                        'bg-red-100 text-red-900 mr-4 dark:bg-red-900/50 dark:text-red-100': msg.role === 'error'
-                    }">
-                    <p class="font-semibold text-xs mb-1 opacity-75">{{ msg.role === 'user' ? 'You' : 'AI' }}</p>
-                    {{ msg.content }}
-                </div>
-                <div v-if="isAiLoading" class="flex justify-center p-4">
-                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500"></div>
-                </div>
-            </div>
-            <!-- Input Area -->
-            <div class="p-4 border-t dark:border-gray-700">
-                <div class="relative">
-                    <textarea 
-                        v-model="aiPrompt" 
-                        @keydown.enter.prevent="handleAiSubmit"
-                        placeholder="Ask AI to modify your CV..." 
-                        class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-purple-500 focus:ring-purple-500 border p-2 pr-10 dark:bg-gray-700 dark:text-white resize-none h-24 text-sm"
-                    ></textarea>
-                    <button 
-                        @click="handleAiSubmit" 
-                        :disabled="isAiLoading || !aiPrompt.trim()"
-                        class="absolute bottom-2 right-2 p-1.5 bg-purple-600 text-white rounded-full hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                        <Send :size="16" />
-                    </button>
-                </div>
-            </div>
           </div>
       </div>
     </main>
     <div v-else class="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
       Loading {{ isCv ? 'CV' : 'Cover Letter' }}...
     </div>
+
+    <!-- Settings Modal -->
+    <SettingsModal
+      :is-open="isSettingsModalOpen"
+      @close="closeSettingsModal"
+    />
   </div>
 </template>
 

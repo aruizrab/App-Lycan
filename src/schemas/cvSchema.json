@@ -1,0 +1,180 @@
+{
+    "type": "object",
+    "description": "CV document data structure. Uses deep merge, so only provide fields you want to set or change.",
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "CV document name/identifier"
+        },
+        "data": {
+            "type": "object",
+            "description": "CV data content",
+            "properties": {
+                "personalInfo": {
+                    "type": "object",
+                    "description": "Personal information section",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Full name"
+                        },
+                        "role": {
+                            "type": "string",
+                            "description": "Professional title or role"
+                        },
+                        "picture": {
+                            "type": "string",
+                            "description": "Profile picture URL"
+                        },
+                        "aboutMe": {
+                            "type": "string",
+                            "description": "About me section content (rich text/HTML)"
+                        },
+                        "aboutMeTitle": {
+                            "type": "string",
+                            "description": "Title for the about me section"
+                        },
+                        "contact": {
+                            "type": "array",
+                            "description": "Contact information entries",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "description": "Unique identifier"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "email",
+                                            "phone",
+                                            "url",
+                                            "text",
+                                            "date"
+                                        ],
+                                        "description": "Contact type"
+                                    },
+                                    "value": {
+                                        "type": "string",
+                                        "description": "Contact value"
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "description": "Display label"
+                                    },
+                                    "icon": {
+                                        "type": "string",
+                                        "description": "Icon name"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "sections": {
+                    "type": "array",
+                    "description": "CV sections (experience, education, skills, etc.)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "enum": [
+                                    "experience",
+                                    "projects",
+                                    "education",
+                                    "skills",
+                                    "languages",
+                                    "certifications"
+                                ],
+                                "description": "Section identifier"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Section title"
+                            },
+                            "type": {
+                                "type": "string",
+                                "description": "Section type"
+                            },
+                            "visible": {
+                                "type": "boolean",
+                                "description": "Whether section is visible"
+                            },
+                            "items": {
+                                "type": "array",
+                                "description": "Section items/entries",
+                                "items": {
+                                    "type": "object",
+                                    "description": "Section item. Fields vary by section type. See field descriptions for applicability.",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "description": "Unique identifier (all types)"
+                                        },
+                                        "title": {
+                                            "type": "string",
+                                            "description": "Title (experience: job title, projects: project name, education: degree/program, skills: skill category, certifications: certificate name)"
+                                        },
+                                        "subtitle": {
+                                            "type": "string",
+                                            "description": "Subtitle (experience/projects/education: company/organization, certifications: issuing organization)"
+                                        },
+                                        "location": {
+                                            "type": "string",
+                                            "description": "Location (experience, education only)"
+                                        },
+                                        "startDate": {
+                                            "type": "string",
+                                            "pattern": "^\\d{4}-\\d{2}$",
+                                            "description": "Start date in YYYY-MM format (e.g., '2024-01'). For experience, projects, education, certifications."
+                                        },
+                                        "endDate": {
+                                            "type": "string",
+                                            "pattern": "^\\d{4}-\\d{2}$",
+                                            "description": "End date in YYYY-MM format (e.g., '2024-12'). For experience, projects, education, certifications."
+                                        },
+                                        "isCurrent": {
+                                            "type": "boolean",
+                                            "description": "Whether this is current/ongoing (experience, projects, education only)"
+                                        },
+                                        "description": {
+                                            "type": "string",
+                                            "description": "Description/details (rich text/HTML). For experience, projects, education, certifications."
+                                        },
+                                        "link": {
+                                            "type": "string",
+                                            "description": "Project URL (projects only)"
+                                        },
+                                        "skills": {
+                                            "type": "string",
+                                            "description": "Comma-separated skills/technologies (projects only)"
+                                        },
+                                        "skillsLabel": {
+                                            "type": "string",
+                                            "description": "Label for skills list, e.g., 'Technologies', 'Tech Stack' (projects only)"
+                                        },
+                                        "content": {
+                                            "type": "string",
+                                            "description": "Rich text content (skills section only)"
+                                        },
+                                        "language": {
+                                            "type": "string",
+                                            "description": "Language name (languages section only)"
+                                        },
+                                        "level": {
+                                            "type": "string",
+                                            "description": "Proficiency level (languages section only)"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "additionalProperties": true
+}

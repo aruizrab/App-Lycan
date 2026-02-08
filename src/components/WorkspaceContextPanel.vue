@@ -16,14 +16,18 @@ import {
     XCircle,
     ExternalLink,
     Calendar,
-    TrendingUp
+    FileText,
+    Plus
 } from 'lucide-vue-next'
 import { ref } from 'vue'
 
-const emit = defineEmits(['edit', 'delete', 'regenerate'])
+const emit = defineEmits(['edit', 'delete', 'regenerate', 'viewCustomContext', 'editCustomContext', 'deleteCustomContext', 'addCustomContext'])
 
 const workspaceStore = useWorkspaceStore()
 const settingsStore = useSettingsStore()
+
+// Reserved keys that are not custom context
+const RESERVED_WS_KEYS = new Set(['metadata', 'cvs', 'coverLetters', 'jobAnalysis', 'matchReport', 'companyResearch'])
 
 // Expanded sections
 const expandedSections = ref({
@@ -38,6 +42,26 @@ const matchReport = computed(() => workspaceStore.getMatchReport)
 const companyResearch = computed(() => workspaceStore.getCompanyResearch)
 const hasAnyContext = computed(() => workspaceStore.hasAiContext)
 const matchThreshold = computed(() => settingsStore.matchReportThreshold)
+
+// Get custom context entries
+const customContextEntries = computed(() => {
+    if (!workspaceStore.currentWorkspace) return []
+    const ws = workspaceStore.workspaces[workspaceStore.currentWorkspace]
+    if (!ws) return []
+    
+    return Object.keys(ws)
+        .filter(key => !RESERVED_WS_KEYS.has(key) && ws[key] !== null && ws[key] !== undefined)
+        .map(key => ({
+            key,
+            ...ws[key]
+        }))
+        .sort((a, b) => (b.lastModified || b.createdAt || 0) - (a.lastModified || a.createdAt || 0))
+})
+
+// Check if there's any context (including custom)
+const hasAnyContextIncludingCustom = computed(() => {
+    return hasAnyContext.value || customContextEntries.value.length > 0
+})
 
 // Methods
 const toggleSection = (section) => {
@@ -98,12 +122,42 @@ const handleDelete = (type) => {
 const handleRegenerate = (type) => {
     emit('regenerate', type)
 }
+
+// Custom context handlers
+const handleViewCustomContext = (contextKey) => {
+    emit('viewCustomContext', contextKey)
+}
+
+const handleEditCustomContext = (contextKey) => {
+    emit('editCustomContext', contextKey)
+}
+
+const handleDeleteCustomContext = (contextKey) => {
+    if (confirm(`Are you sure you want to delete the context entry "${contextKey}"?`)) {
+        emit('deleteCustomContext', contextKey)
+    }
+}
+
+const handleAddCustomContext = () => {
+    emit('addCustomContext')
+}
+
+const formatContextKey = (key) => {
+    // Convert snake_case or camelCase to Title Case
+    return key
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/_/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+        .trim()
+}
 </script>
 
 <template>
     <div class="space-y-4">
         <!-- Empty State -->
-        <div v-if="!hasAnyContext" class="text-center py-8 text-gray-500 dark:text-gray-400">
+        <div v-if="!hasAnyContextIncludingCustom" class="text-center py-8 text-gray-500 dark:text-gray-400">
             <Briefcase :size="48" class="mx-auto mb-3 opacity-50" />
             <p class="font-medium">No workspace context yet</p>
             <p class="text-sm mt-1">Use the AI Assistant to analyze a job posting</p>
@@ -313,6 +367,49 @@ const handleRegenerate = (type) => {
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Custom Context Entries Section -->
+        <div v-if="customContextEntries.length > 0" class="space-y-3">
+            <!-- Header with Add Button -->
+            <div class="flex items-center justify-between mb-2">
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Custom Context</h4>
+                <button
+                    @click="handleAddCustomContext"
+                    class="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                    title="Add new context entry"
+                >
+                    <Plus :size="14" />
+                    Add Entry
+                </button>
+            </div>
+
+            <!-- Custom Context Items Grid -->
+            <div class="flex flex-wrap gap-2">
+                <button
+                    v-for="entry in customContextEntries"
+                    :key="entry.key"
+                    @click="handleViewCustomContext(entry.key)"
+                    class="inline-flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 transition-colors group"
+                    :title="`Click to view ${formatContextKey(entry.key)}`"
+                >
+                    <div class="p-1.5 rounded bg-purple-100 dark:bg-purple-900/30 group-hover:bg-purple-200 dark:group-hover:bg-purple-800/40 transition-colors">
+                        <FileText :size="16" class="text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ formatContextKey(entry.key) }}</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Add Entry Button (when no custom entries exist yet) -->
+        <div v-else-if="hasAnyContext" class="text-center py-4">
+            <button
+                @click="handleAddCustomContext"
+                class="flex items-center gap-2 mx-auto px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+            >
+                <Plus :size="16" />
+                Add Custom Context Entry
+            </button>
         </div>
     </div>
 </template>
