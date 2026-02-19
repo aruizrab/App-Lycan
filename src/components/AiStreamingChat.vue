@@ -10,9 +10,9 @@ import { useChatStore } from '../stores/chat'
 import { useSettingsStore } from '../stores/settings'
 import { useSettingsModal } from '../composables/useSettingsModal'
 import { useMarkdown } from '../composables/useMarkdown'
-import { chatWithTools } from '../services/ai'
+import { chatWithTools, determineWebSearchCapability } from '../services/ai'
 import { AI_COMMANDS, parseCommand, getAllCommands } from '../services/aiCommands'
-import { getToolsForCommand, executeToolCall, setupToolHandlers } from '../services/aiToolkit'
+import { getToolsForCommand, executeToolCall, setupToolHandlers, TOOL_DISPLAY_NAMES } from '../services/aiToolkit'
 import { loadGeneralPrompt, loadCommandPrompt } from '../services/promptLoader'
 import { useAppContext } from '../composables/useAppContext'
 
@@ -58,6 +58,7 @@ const messagesContainer = ref(null)
 const showSessionList = ref(false)
 const toolsInitialized = ref(false)
 const expandedReasoning = ref(new Set())  // Track which messages have expanded reasoning
+const expandedToolCalls = ref(new Set())  // Track which tool calls have expanded parameters
 
 // Initialize tool handlers once
 onMounted(() => {
@@ -177,17 +178,17 @@ const handleKeydown = (e) => {
 
 /**
  * Build the system prompt for the current request.
- * - Always includes the general prompt (with dynamic app context).
+ * - Always includes the general prompt (static instructions only).
  * - If a command is active, also appends the command-specific prompt.
+ * - App context is now injected ephemerally, not in system prompt.
  */
 const buildSystemPrompt = async (commandId = null) => {
-    const contextJson = appContextJson.value
-
+    // No longer pass context to prompt - it will be injected ephemerally
     if (commandId && AI_COMMANDS[commandId]?.promptFile) {
-        return loadCommandPrompt(AI_COMMANDS[commandId].promptFile, contextJson)
+        return loadCommandPrompt(AI_COMMANDS[commandId].promptFile)
     }
 
-    return loadGeneralPrompt(contextJson)
+    return loadGeneralPrompt()
 }
 
 const handleSend = async () => {
@@ -234,26 +235,29 @@ const handleSend = async () => {
 
         // Build system prompt (async — loads from markdown files)
         const systemPrompt = await buildSystemPrompt(commandId)
-        const apiMessages = chatStore.getApiMessages(systemPrompt)
+        
+        // Pass ephemeral context that will be injected before last user message
+        // This gives maximum attention weight and stays fresh as user navigates
+        const apiMessages = chatStore.getApiMessages(systemPrompt, appContextJson.value)
 
-        // Determine web search need
-        const needsWebSearch = cmd
-            ? (typeof cmd.requiresWebSearch === 'function' ? cmd.requiresWebSearch(content) : cmd.requiresWebSearch)
-            : false
+        // Append :online to model name if it supports web search (OpenRouter native search)
+        let finalModel = model
+        if (determineWebSearchCapability(model) && !model.endsWith(':online')) {
+            finalModel = `${model}:online`
+        }
 
         // Get appropriate tools
         const tools = getToolsForCommand(commandId)
 
         console.log('[AiStreamingChat] Sending request:', {
             commandId,
-            model,
-            needsWebSearch,
+            model: finalModel,
+            webSearchEnabled: determineWebSearchCapability(model),
             toolCount: tools.length
         })
 
         // Stream the response with tool support
-        const result = await chatWithTools(apiKey, model, apiMessages, {
-            enableWebSearch: needsWebSearch,
+        const result = await chatWithTools(apiKey, finalModel, apiMessages, {
             tools,
             tool_choice: 'auto',
             onContent: (chunk, accumulated) => {
@@ -273,9 +277,9 @@ const handleSend = async () => {
                     reasoning: roundData.reasoning,
                     toolCalls: roundData.toolCalls,
                     metadata: {
-                        model,
+                        model: finalModel,
                         commandId,
-                        hasWebSearch: needsWebSearch
+                        hasWebSearch: determineWebSearchCapability(model)
                     }
                 })
                 // If not the last round, restart streaming for next round
@@ -348,6 +352,29 @@ const toggleReasoning = (msgId) => {
         expandedReasoning.value.delete(msgId)
     } else {
         expandedReasoning.value.add(msgId)
+    }
+}
+
+const toggleToolCall = (toolCallId) => {
+    if (expandedToolCalls.value.has(toolCallId)) {
+        expandedToolCalls.value.delete(toolCallId)
+    } else {
+        expandedToolCalls.value.add(toolCallId)
+    }
+}
+
+const getToolDisplayName = (toolName) => {
+    return TOOL_DISPLAY_NAMES[toolName] || toolName
+}
+
+const formatToolArguments = (args) => {
+    try {
+        if (typeof args === 'string') {
+            return JSON.stringify(JSON.parse(args), null, 2)
+        }
+        return JSON.stringify(args, null, 2)
+    } catch (e) {
+        return args
     }
 }
 </script>
@@ -504,11 +531,23 @@ const toggleReasoning = (msgId) => {
                         <div 
                             v-for="(toolCall, tcIdx) in msg.toolCalls" 
                             :key="toolCall.id || tcIdx"
-                            class="px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs"
+                            class="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 overflow-hidden"
                         >
-                            <div class="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-medium">
+                            <button 
+                                @click="toggleToolCall(toolCall.id || `${msg.id}-${tcIdx}`)"
+                                class="w-full px-3 py-2 flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition"
+                            >
                                 <Wrench :size="12" />
-                                <span>{{ toolCall.function.name }}</span>
+                                <span>{{ getToolDisplayName(toolCall.function.name) }}</span>
+                                <ChevronRight v-if="!expandedToolCalls.has(toolCall.id || `${msg.id}-${tcIdx}`)" :size="14" class="ml-auto" />
+                                <ChevronDown v-else :size="14" class="ml-auto" />
+                            </button>
+                            <div 
+                                v-if="expandedToolCalls.has(toolCall.id || `${msg.id}-${tcIdx}`)" 
+                                class="px-3 py-2 text-xs text-gray-600 dark:text-gray-300 border-t border-amber-200 dark:border-amber-800"
+                            >
+                                <div class="font-medium mb-1 text-amber-700 dark:text-amber-300">Parameters:</div>
+                                <pre class="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto text-[10px] leading-relaxed">{{ formatToolArguments(toolCall.function.arguments) }}</pre>
                             </div>
                         </div>
                     </div>
@@ -540,12 +579,22 @@ const toggleReasoning = (msgId) => {
                     <div 
                         v-for="(toolCall, idx) in streamingToolCalls" 
                         :key="toolCall.id || idx"
-                        class="px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs"
+                        class="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 overflow-hidden"
                     >
-                        <div class="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-medium">
+                        <button 
+                            @click="toggleToolCall(toolCall.id || `streaming-${idx}`)"
+                            class="w-full px-3 py-2 flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition"
+                        >
                             <Wrench :size="12" />
-                            <span>{{ toolCall.function.name }}</span>
+                            <span>{{ getToolDisplayName(toolCall.function.name) }}</span>
                             <Loader2 :size="12" class="ml-auto animate-spin" />
+                        </button>
+                        <div 
+                            v-if="expandedToolCalls.has(toolCall.id || `streaming-${idx}`)" 
+                            class="px-3 py-2 text-xs text-gray-600 dark:text-gray-300 border-t border-amber-200 dark:border-amber-800"
+                        >
+                            <div class="font-medium mb-1 text-amber-700 dark:text-amber-300">Parameters:</div>
+                            <pre class="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto text-[10px] leading-relaxed">{{ formatToolArguments(toolCall.function.arguments) }}</pre>
                         </div>
                     </div>
                 </div>

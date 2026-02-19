@@ -102,6 +102,10 @@ export const getCurrentView = (route) => {
 
 /**
  * Build the full APP CONTEXT JSON used in system prompts.
+ * Uses a two-tier approach:
+ * - Always includes a lightweight list of ALL workspace names (for cross-workspace awareness)
+ * - Includes detailed info only for the current workspace when in a specific view
+ * 
  * @param {import('vue-router').RouteLocationNormalized} route
  */
 export const buildAppContext = (route) => {
@@ -109,7 +113,14 @@ export const buildAppContext = (route) => {
     const currentView = getCurrentView(route)
     const allViews = ['general_dashboard', 'workspace_dashboard', 'cv_editor', 'cover_letter_editor']
 
-    const base = { all_views: allViews, current_view: currentView }
+    // Always include list of all workspace names for cross-workspace awareness
+    const allWorkspaceNames = Object.keys(workspace.workspaces)
+
+    const base = {
+        all_views: allViews,
+        current_view: currentView,
+        all_workspaces: allWorkspaceNames  // 🔥 Always present for cross-workspace ops
+    }
 
     const buildWorkspaceTree = (wsName) => {
         const ws = workspace.workspaces[wsName]
@@ -124,7 +135,7 @@ export const buildAppContext = (route) => {
     if (currentView === 'general_dashboard') {
         return {
             ...base,
-            workspaces: Object.keys(workspace.workspaces).map(buildWorkspaceTree)
+            workspaces: allWorkspaceNames.map(buildWorkspaceTree)  // Full detail for all
         }
     }
 
@@ -132,15 +143,15 @@ export const buildAppContext = (route) => {
     const wsTree = buildWorkspaceTree(wsName)
 
     if (currentView === 'workspace_dashboard') {
-        return { ...base, workspace: wsTree }
+        return { ...base, current_workspace: wsTree }  // Detailed for current only
     }
 
     if (currentView === 'cv_editor') {
-        return { ...base, workspace: wsTree, current_cv: cv.currentCvName }
+        return { ...base, current_workspace: wsTree, current_cv: cv.currentCvName }
     }
 
     if (currentView === 'cover_letter_editor') {
-        return { ...base, workspace: wsTree, current_cover_letter: coverLetter.currentCoverLetterName }
+        return { ...base, current_workspace: wsTree, current_cover_letter: coverLetter.currentCoverLetterName }
     }
 
     return base
@@ -253,16 +264,7 @@ export const getWorkspaceContext = (workspaceName, contextKey) => {
 
 export const getUserProfile = () => {
     const { userProfile } = getStores()
-    return {
-        fullName: userProfile.fullName,
-        email: userProfile.email,
-        phone: userProfile.phone,
-        location: userProfile.location,
-        linkedIn: userProfile.linkedIn,
-        portfolio: userProfile.portfolio,
-        professionalExperience: userProfile.professionalExperience,
-        summary: userProfile.getProfileSummary
-    }
+    return userProfile.professionalExperience || ''
 }
 
 // =========================================================
@@ -513,6 +515,29 @@ export const editWorkspaceContext = (workspaceName, contextKey, newContent) => {
         workspace.save()
 
         return { success: true, workspace_name: workspaceName, context_key: contextKey }
+    } catch (e) {
+        return { error: e.message }
+    }
+}
+
+/**
+ * Edit user profile (professional experience string - single source of truth)
+ * @param {string} professionalExperience - The complete profile text
+ */
+export const editUserProfile = (professionalExperience) => {
+    const { userProfile } = getStores()
+
+    try {
+        if (typeof professionalExperience !== 'string') {
+            return { error: 'professionalExperience must be a string' }
+        }
+
+        userProfile.updateProfessionalExperience(professionalExperience)
+
+        return {
+            success: true,
+            message: 'User profile updated successfully'
+        }
     } catch (e) {
         return { error: e.message }
     }

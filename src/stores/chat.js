@@ -187,9 +187,10 @@ export const useChatStore = defineStore('chat', () => {
 
     /**
      * Get messages formatted for OpenRouter API
-     * @param {Object} systemPrompt - Optional system prompt to prepend
+     * @param {Object} systemPrompt - Optional system prompt to prepend (persistent)
+     * @param {string} ephemeralContext - Optional context injected before last user message (not persisted)
      */
-    const getApiMessages = (systemPrompt = null) => {
+    const getApiMessages = (systemPrompt = null, ephemeralContext = null) => {
         const apiMessages = []
 
         if (systemPrompt) {
@@ -199,15 +200,29 @@ export const useChatStore = defineStore('chat', () => {
             })
         }
 
+        const conversationMessages = []
         // Add conversation history (excluding errors)
         for (const msg of messages.value) {
             if (msg.role === 'error') continue
-            apiMessages.push({
+            conversationMessages.push({
                 role: msg.role,
                 content: msg.content
             })
         }
 
+        // If ephemeral context provided, inject it right before the last user message
+        // This gives maximum attention weight to current app state
+        if (ephemeralContext && conversationMessages.length > 0) {
+            const lastUserIndex = conversationMessages.length - 1
+
+            // Insert context message before last user message
+            conversationMessages.splice(lastUserIndex, 0, {
+                role: 'system',
+                content: `## Current App Context\n\n${ephemeralContext}`
+            })
+        }
+
+        apiMessages.push(...conversationMessages)
         return apiMessages
     }
 

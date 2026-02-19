@@ -34,28 +34,37 @@ export const loadPrompt = async (filename) => {
 }
 
 /**
- * Load the general system prompt and inject app context JSON.
- * @param {string} appContextJson - JSON string of app context
- * @returns {Promise<string>} Rendered general prompt
+ * Load the general system prompt (static instructions only).
+ * App context is now injected ephemerally, not in the system prompt.
+ * @returns {Promise<string>} General prompt without app context
  */
-export const loadGeneralPrompt = async (appContextJson) => {
+export const loadGeneralPrompt = async () => {
     const template = await loadPrompt('general.md')
-    return template.replace('{{APP_CONTEXT}}', appContextJson)
+    // Remove the dynamic context section - it will be injected ephemerally
+    return template.replace('{{APP_CONTEXT}}', '(Context injected dynamically per message)')
 }
 
 /**
  * Load a command-specific prompt and combine with the general prompt.
- * @param {string} commandPromptFile - e.g. 'analyze-command.md'
- * @param {string} appContextJson - JSON string of app context
- * @returns {Promise<string>} Combined system prompt
+ * @param {string} commandPromptFile - e.g. 'commands/analyze.md' or legacy 'analyze-command.md'
+ * @returns {Promise<string>} Combined system prompt (static only)
  */
-export const loadCommandPrompt = async (commandPromptFile, appContextJson) => {
+export const loadCommandPrompt = async (commandPromptFile) => {
     const [generalPrompt, commandPrompt] = await Promise.all([
-        loadGeneralPrompt(appContextJson),
+        loadGeneralPrompt(),
         loadPrompt(commandPromptFile)
     ])
 
     return `${generalPrompt}\n\n---\n\n${commandPrompt}`
+}
+
+/**
+ * Load an agent-specific prompt from public/prompts/agents/.
+ * @param {string} agentPromptFile - e.g. 'agents/job-analysis.md'
+ * @returns {Promise<string>} The agent prompt text
+ */
+export const loadAgentPrompt = async (agentPromptFile) => {
+    return loadPrompt(agentPromptFile)
 }
 
 /**

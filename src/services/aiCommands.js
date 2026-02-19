@@ -25,11 +25,14 @@ export const AI_COMMANDS = {
         id: 'analyze',
         name: 'Analyze Job',
         description: 'Analyze a job posting from URL or pasted text',
-        promptFile: 'analyze-command.md',
+        promptFile: 'commands/analyze.md',
         promptType: PROMPT_TYPES.JOB_ANALYSIS,
         commandType: AI_COMMAND_TYPES.JOB_ANALYSIS,
         /** Build user message from raw input */
-        buildUserMessage: (content) => `Analyze this job offer: ${content}`,
+        buildUserMessage: (content) =>
+            content
+                ? `Analyze this job offer: ${content}`
+                : 'Analyze the job posting in this workspace.',
         /** Whether this command needs web search */
         requiresWebSearch: (input) => isUrl(input)
     },
@@ -37,7 +40,7 @@ export const AI_COMMANDS = {
         id: 'match',
         name: 'Profile Match',
         description: 'Generate a match report between your profile and the job',
-        promptFile: 'match-command.md',
+        promptFile: 'commands/match.md',
         promptType: PROMPT_TYPES.MATCH_REPORT,
         commandType: AI_COMMAND_TYPES.MATCH_REPORT,
         buildUserMessage: () => "Generate a match report for my User Profile and the job offer in this workspace's context.",
