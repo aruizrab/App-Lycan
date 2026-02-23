@@ -402,7 +402,7 @@ const formatContextKey = (key) => {
         </div>
 
         <!-- Add Entry Button (when no custom entries exist yet) -->
-        <div v-else-if="hasAnyContext" class="text-center py-4">
+        <div v-else class="text-center py-4">
             <button
                 @click="handleAddCustomContext"
                 class="flex items-center gap-2 mx-auto px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
