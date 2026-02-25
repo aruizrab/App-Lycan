@@ -11,12 +11,54 @@ npm run preview      # Preview production build
 npm run lint         # ESLint with auto-fix
 npm run format       # Prettier format src/
 npm run test:unit    # Run unit tests (Vitest + jsdom)
+npm run test:e2e     # Run end-to-end tests (Playwright + Chromium)
 ```
 
 Run a single test file:
 ```bash
 npx vitest src/components/__tests__/HelloWorld.spec.js
 ```
+
+Run with coverage:
+```bash
+npx vitest --coverage
+```
+
+## Testing
+
+### Structure
+
+```
+src/test/setup.js          # Global Vitest setup: localStorage mock, crypto.randomUUID mock,
+                           #   vue-router mock, Pinia reset (setActivePinia) per test
+src/test/factories.js      # Data factories: createWorkspace(), createCvDocument(),
+                           #   createCoverLetterDocument(), createChatSession(), etc.
+src/stores/__tests__/      # Store unit tests (one file per store)
+src/services/__tests__/    # Service unit tests (aiToolkit, aiCommands, dataAccess)
+e2e/                       # Playwright end-to-end tests
+e2e/helpers/app.js         # Page Object helpers: clearAppData(), createWorkspace(), etc.
+playwright.config.js       # Playwright config — auto-starts dev server via webServer
+```
+
+### Unit Test Conventions
+
+- `setActivePinia(createPinia())` + `localStorage.clear()` run automatically before every test (via `src/test/setup.js`)
+- Use relative imports — `@` alias is not configured
+- Use factories from `src/test/factories.js` for test data
+- For stores: access the store directly after `setActivePinia` — do not mock it
+
+### E2E Conventions
+
+- Playwright auto-starts `npm run dev` (or `npm run preview` in CI) via `webServer`
+- Call `await clearAppData(page)` in `test.beforeEach` for localStorage isolation
+- Prefer `getByRole()` and `getByPlaceholder()` over CSS class selectors
+- Use `exact: true` with `getByText()` to avoid strict-mode violations from partial matches
+
+### Key Testing Gotchas
+
+- **Default workspace on init**: `workspace.js` always creates "My Workspace" when localStorage is empty. Tests that expect an empty store must reset manually: `ws.workspaces = {}; ws.currentWorkspace = null`
+- **Mocking `ai.js`**: The mock must include ALL exports (`RECOMMENDED_MODELS`, `WEB_SEARCH_MODELS`, etc.) because `settings.js` imports them at module level. Partial mocks cause Vitest to throw.
+- **Async persistence**: Pinia `watch()` fires asynchronously. Add `await nextTick()` (from `vue`) before asserting `localStorage.setItem` was called.
 
 ## Architecture
 
