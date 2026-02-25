@@ -128,16 +128,6 @@ const handleViewCustomContext = (contextKey) => {
     emit('viewCustomContext', contextKey)
 }
 
-const handleEditCustomContext = (contextKey) => {
-    emit('editCustomContext', contextKey)
-}
-
-const handleDeleteCustomContext = (contextKey) => {
-    if (confirm(`Are you sure you want to delete the context entry "${contextKey}"?`)) {
-        emit('deleteCustomContext', contextKey)
-    }
-}
-
 const handleAddCustomContext = () => {
     emit('addCustomContext')
 }

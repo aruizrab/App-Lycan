@@ -2,8 +2,8 @@
 import CoverLetterForm from '../components/CoverLetterForm.vue'
 import CoverLetterPreview from '../components/CoverLetterPreview.vue'
 import { useCoverLetterStore } from '../stores/coverLetter'
-import { Printer, Moon, Sun, ArrowLeft, Save, FileText } from 'lucide-vue-next'
-import { ref, onMounted, computed } from 'vue'
+import { Printer, Moon, Sun, ArrowLeft, FileText } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const store = useCoverLetterStore()

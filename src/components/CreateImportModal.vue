@@ -171,7 +171,7 @@ const handleFileChange = (event) => {
       if (parsed.workspaceName || parsed.name) {
         nameValue.value = parsed.workspaceName || parsed.name
       }
-    } catch (error) {
+    } catch {
       errorMessage.value = 'Invalid JSON file'
       fileContent.value = null
     }

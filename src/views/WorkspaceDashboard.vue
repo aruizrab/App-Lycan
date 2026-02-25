@@ -157,7 +157,7 @@ import {
 const router = useRouter()
 const route = useRoute()
 const workspaceStore = useWorkspaceStore()
-const { isSettingsModalOpen, openSettingsModal, closeSettingsModal } = useSettingsModal()
+const { isSettingsModalOpen, closeSettingsModal } = useSettingsModal()
 
 const viewMode = ref('grid')
 const showAiPanel = ref(false)

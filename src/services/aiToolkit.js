@@ -20,7 +20,6 @@
 import * as data from './dataAccess'
 import { useSystemPromptsStore, PROMPT_TYPES } from '../stores/systemPrompts'
 import { useSettingsStore, AI_COMMAND_TYPES } from '../stores/settings'
-import { useUserProfileStore } from '../stores/userProfile'
 import { streamAndCollect, isWebSearchCompatible } from './ai'
 import { loadAgentPrompt } from './promptLoader'
 import cvSchema from '../schemas/cvSchema.json'
@@ -529,7 +528,7 @@ export const executeToolCall = async (toolCall) => {
  * @param {import('vue-router').Router} router - Vue Router instance for navigation tools
  * @param {import('vue-router').RouteLocationNormalized} route - Current route (reactive)
  */
-export const setupToolHandlers = (router, route) => {
+export const setupToolHandlers = (router, _route) => {
 
     // ── NAVIGATION ──────────────────────────────────────────
     registerToolHandler('go_to', async (args) => {
@@ -769,7 +768,7 @@ export const setupToolHandlers = (router, route) => {
             // Load default agent prompt from file
             try {
                 systemPromptContent = await loadAgentPrompt('agents/job-analysis.md')
-            } catch (e) {
+            } catch {
                 // Fallback to store default if file load fails
                 systemPromptContent = activePrompt?.content
                 if (!systemPromptContent) return { error: 'No system prompt available for job analysis' }
@@ -904,7 +903,7 @@ export const setupToolHandlers = (router, route) => {
             // Load default agent prompt from file
             try {
                 systemPromptContent = await loadAgentPrompt('agents/match-report.md')
-            } catch (e) {
+            } catch {
                 // Fallback to store default if file load fails
                 systemPromptContent = activePrompt?.content
                 if (!systemPromptContent) return { error: 'No system prompt available for match report' }

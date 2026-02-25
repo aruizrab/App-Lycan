@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { reactive, watch, toRefs, computed } from 'vue'
+import { reactive, watch, toRefs } from 'vue'
 
 const STORAGE_KEY = 'app-lycan-system-prompts'
 

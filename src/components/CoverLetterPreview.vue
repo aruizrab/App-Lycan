@@ -2,7 +2,7 @@
 import { useCoverLetterStore } from '../stores/coverLetter'
 import { computed } from 'vue'
 
-const props = defineProps({
+defineProps({
   uppercaseTitle: {
     type: Boolean,
     default: true

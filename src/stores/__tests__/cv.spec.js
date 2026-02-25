@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { useCvStore } from '../cv'
 import { useWorkspaceStore } from '../workspace'
 import { useCvMetaStore } from '../cvMeta'
-import { createCvDocument, createCvData } from '../../test/factories'
+import { createCvData } from '../../test/factories'
 
 describe('cv store', () => {
   let cvStore
@@ -307,7 +307,6 @@ describe('cv store', () => {
     })
 
     it('undo restores previous state', () => {
-      const originalName = cvStore.cv.personalInfo.name
       cvStore.addContactField() // saves snapshot before adding
       const contactsAfterAdd = cvStore.cv.personalInfo.contact.length
 

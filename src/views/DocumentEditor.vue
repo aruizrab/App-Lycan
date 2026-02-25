@@ -9,7 +9,7 @@ import { useCvStore } from '../stores/cv'
 import { useCoverLetterStore } from '../stores/coverLetter'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useSettingsModal } from '../composables/useSettingsModal'
-import { Printer, Moon, Sun, ArrowLeft, FileText, Settings, Sparkles, RotateCcw, RotateCw, X, Download, Edit } from 'lucide-vue-next'
+import { Printer, Moon, Sun, ArrowLeft, FileText, Settings, Sparkles, RotateCcw, RotateCw, Download, Edit } from 'lucide-vue-next'
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
@@ -26,12 +26,11 @@ const props = defineProps({
 const cvStore = useCvStore()
 const clStore = useCoverLetterStore()
 const workspaceStore = useWorkspaceStore()
-const { isSettingsModalOpen, openSettingsModal, closeSettingsModal } = useSettingsModal()
+const { isSettingsModalOpen, closeSettingsModal } = useSettingsModal()
 const route = useRoute()
 const router = useRouter()
 
 const isCv = computed(() => props.documentType === 'cv')
-const store = computed(() => isCv.value ? cvStore : clStore)
 const currentDocument = computed(() => isCv.value ? cvStore.cv : clStore.coverLetter)
 
 const docName = ref('')

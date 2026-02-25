@@ -130,7 +130,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useSystemPromptsStore } from '../stores/systemPrompts'
 import ModelSettings from './ModelSettings.vue'
@@ -146,7 +146,7 @@ import {
   Trash2 as Trash2Icon
 } from 'lucide-vue-next'
 
-const props = defineProps({
+defineProps({
   isOpen: {
     type: Boolean,
     default: false

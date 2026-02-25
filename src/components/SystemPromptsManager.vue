@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useSystemPromptsStore, PROMPT_TYPES, DEFAULT_PROMPTS } from '../stores/systemPrompts'
-import RichTextEditor from './RichTextEditor.vue'
 import {
     FileText,
     Plus,

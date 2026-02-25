@@ -3,7 +3,7 @@ import { useCvStore } from '../stores/cv'
 import { Globe, MapPin, Calendar, Mail, Phone } from 'lucide-vue-next'
 import { computed } from 'vue'
 
-const props = defineProps({
+defineProps({
   atsMode: {
     type: Boolean,
     default: false
@@ -39,7 +39,7 @@ const getFavicon = (url) => {
   try {
     const domain = url.startsWith('http') ? new URL(url).hostname : new URL(`https://${url}`).hostname
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
-  } catch (e) {
+  } catch {
     return ''
   }
 }

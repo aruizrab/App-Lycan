@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { useCoverLetterStore } from '../coverLetter'
 import { useWorkspaceStore } from '../workspace'
-import { createCoverLetterData, createCoverLetterDocument } from '../../test/factories'
+import { createCoverLetterData } from '../../test/factories'
 
 describe('coverLetter store', () => {
   let clStore

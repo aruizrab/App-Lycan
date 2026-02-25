@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { useChatStore } from '../chat'
-import { createChatSession, createChatMessage } from '../../test/factories'
+import { createChatSession } from '../../test/factories'
 
 describe('chat store', () => {
   let store

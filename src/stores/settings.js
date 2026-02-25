@@ -147,7 +147,7 @@ export const useSettingsStore = defineStore('settings', () => {
      * Set model for a specific AI command type
      */
     const setModelForTask = (taskType, modelId) => {
-        if (state.taskModels.hasOwnProperty(taskType)) {
+        if (Object.hasOwn(state.taskModels, taskType)) {
             state.taskModels[taskType] = modelId
         }
     }

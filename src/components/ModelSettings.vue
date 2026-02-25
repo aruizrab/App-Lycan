@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useSettingsStore, AI_COMMAND_TYPES, WEB_SEARCH_COMMANDS } from '../stores/settings'
-import { isWebSearchCompatible } from '../services/ai'
+import { useSettingsStore, AI_COMMAND_TYPES } from '../stores/settings'
 import { storeToRefs } from 'pinia'
 import ModelDropdown from './ModelDropdown.vue'
 import {
@@ -12,7 +11,6 @@ import {
     Cpu,
     Check,
     X,
-    AlertTriangle,
     Info,
     RefreshCw
 } from 'lucide-vue-next'
@@ -80,24 +78,6 @@ const COMMAND_LABELS = {
 const allModels = computed(() => {
     return [...availableModels.value, ...customModels.value]
 })
-
-const webSearchModels = computed(() => {
-    return allModels.value.filter(m => m.webSearchCompatible)
-})
-
-const getModelsForTask = (taskType) => {
-    const requiresWebSearch = WEB_SEARCH_COMMANDS.includes(taskType)
-    if (requiresWebSearch) {
-        return webSearchModels.value
-    }
-    return allModels.value
-}
-
-const isModelValidForTask = (taskType, modelId) => {
-    const requiresWebSearch = WEB_SEARCH_COMMANDS.includes(taskType)
-    if (!requiresWebSearch) return true
-    return isWebSearchCompatible(modelId, availableModels.value, customModels.value)
-}
 
 const cacheAge = computed(() => {
     const age = settingsStore.getCacheAge()

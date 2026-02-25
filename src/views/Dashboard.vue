@@ -39,7 +39,7 @@ const clStore = useCoverLetterStore()
 const workspaceStore = useWorkspaceStore()
 const router = useRouter()
 const route = useRoute()
-const { isSettingsModalOpen, openSettingsModal, closeSettingsModal } = useSettingsModal()
+const { isSettingsModalOpen, closeSettingsModal } = useSettingsModal()
 
 const viewMode = ref('grid') // 'grid' or 'list'
 const activeTab = ref('cv') // 'cv' or 'cover-letter'
@@ -99,7 +99,7 @@ watch(
     if (workspaceName) {
       try {
         workspaceStore.setCurrentWorkspace(decodeURIComponent(workspaceName))
-      } catch (error) {
+      } catch {
         router.push('/')
       }
     }

@@ -45,7 +45,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { MoreVertical as MoreVerticalIcon, Copy, Trash2, Download, Edit } from 'lucide-vue-next'
 
-const props = defineProps({
+defineProps({
   actions: {
     type: Array,
     default: () => [

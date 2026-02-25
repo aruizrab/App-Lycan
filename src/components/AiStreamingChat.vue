@@ -1,9 +1,9 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import {
-    Loader2, Send, ChevronDown, ChevronRight, Check, AlertCircle,
-    Globe, FileText, Sparkles, MessageSquare, Monitor, X, Plus,
-    Trash2, MoreHorizontal, Settings, Wrench, Brain
+    Loader2, Send, ChevronDown, ChevronRight,
+    Sparkles, MessageSquare, Monitor, X, Plus,
+    Trash2, Settings, Wrench, Brain
 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat'
@@ -257,7 +257,7 @@ const handleSend = async () => {
         })
 
         // Stream the response with tool support
-        const result = await chatWithTools(apiKey, finalModel, apiMessages, {
+        await chatWithTools(apiKey, finalModel, apiMessages, {
             tools,
             tool_choice: 'auto',
             onContent: (chunk, accumulated) => {
@@ -373,7 +373,7 @@ const formatToolArguments = (args) => {
             return JSON.stringify(JSON.parse(args), null, 2)
         }
         return JSON.stringify(args, null, 2)
-    } catch (e) {
+    } catch {
         return args
     }
 }

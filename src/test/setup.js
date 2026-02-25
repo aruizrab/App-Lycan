@@ -1,4 +1,4 @@
-import { vi, beforeEach, afterEach } from 'vitest'
+import { vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 // --- localStorage mock (Map-based) ---

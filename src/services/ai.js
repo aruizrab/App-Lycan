@@ -246,7 +246,7 @@ export const performAiActionWithJson = async (apiKey, model, messages, jsonSchem
 
         try {
             return JSON.parse(content)
-        } catch (e) {
+        } catch {
             console.error('Failed to parse AI response', content)
             throw new Error('AI response was not valid JSON')
         }
@@ -342,10 +342,8 @@ export async function* streamWithTools(apiKey, model, messages, options = {}) {
 
         let currentToolCalls = []
         let toolCallBuffers = new Map() // Buffer for streaming tool call arguments
-        let chunkCount = 0
 
         for await (const chunk of stream) {
-            chunkCount++
             const choice = chunk.choices?.[0]
             if (!choice) {
                 continue
@@ -430,7 +428,7 @@ export const chatWithTools = async (apiKey, model, messages, options = {}) => {
     const {
         onContent,
         onReasoning,
-        onToolCall,
+        onToolCall: _onToolCall,
         onRoundComplete,
         executeToolCall,
         maxToolRounds = 5,

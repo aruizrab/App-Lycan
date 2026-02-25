@@ -80,7 +80,7 @@ export const useUserProfileStore = defineStore('userProfile', () => {
     const updateContactInfo = (info) => {
         const allowedFields = ['fullName', 'email', 'phone', 'location', 'linkedIn', 'portfolio']
         allowedFields.forEach(field => {
-            if (info.hasOwnProperty(field)) {
+            if (Object.hasOwn(info, field)) {
                 state[field] = info[field]
             }
         })

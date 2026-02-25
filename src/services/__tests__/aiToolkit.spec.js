@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useCvStore } from '../../stores/cv'
-import { useCoverLetterStore } from '../../stores/coverLetter'
 import { useUserProfileStore } from '../../stores/userProfile'
 import { useSettingsStore } from '../../stores/settings'
 import { useSystemPromptsStore } from '../../stores/systemPrompts'
@@ -917,7 +915,7 @@ describe('aiToolkit', () => {
         }
 
         // Set up system prompts store
-        const sysPrompts = useSystemPromptsStore()
+        useSystemPromptsStore()
         // The default prompt is used since we load from file (mocked)
       })
 
@@ -1216,7 +1214,7 @@ describe('aiToolkit', () => {
 
       it('returns research result on success', async () => {
         // Need system prompt set up
-        const sysPrompts = useSystemPromptsStore()
+        useSystemPromptsStore()
 
         streamAndCollect.mockResolvedValueOnce('Acme Corp is a well-established company...')
 

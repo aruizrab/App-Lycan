@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { useSystemPromptsStore, PROMPT_TYPES, DEFAULT_PROMPTS } from '../systemPrompts'
 

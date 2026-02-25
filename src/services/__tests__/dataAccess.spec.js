@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useCvStore } from '../../stores/cv'
-import { useCoverLetterStore } from '../../stores/coverLetter'
 import { useUserProfileStore } from '../../stores/userProfile'
 import {
-  createWorkspace as createWorkspaceFactory,
   createCvDocument,
   createCoverLetterDocument
 } from '../../test/factories'
@@ -34,8 +32,7 @@ import {
   deleteCoverLetterWithConfirm,
   deleteWorkspaceContextWithConfirm,
   confirmDeletion,
-  rejectDeletion,
-  getPendingDeletion
+  rejectDeletion
 } from '../dataAccess'
 
 // Helper: set up a workspace with optional CVs and cover letters in the store

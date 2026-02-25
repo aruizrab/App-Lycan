@@ -128,7 +128,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settings'
 import { useSystemPromptsStore } from '../stores/systemPrompts'
@@ -140,8 +140,6 @@ import {
   Bot as BotIcon,
   MessageSquare as MessageSquareIcon,
   Sliders as SlidersIcon,
-  Eye as EyeIcon,
-  EyeOff as EyeOffIcon,
   Download as DownloadIcon,
   Upload as UploadIcon,
   Trash2 as Trash2Icon
@@ -152,7 +150,6 @@ const settingsStore = useSettingsStore()
 const systemPromptsStore = useSystemPromptsStore()
 
 const activeTab = ref('models')
-const showApiKey = ref(false)
 const showResetConfirm = ref(false)
 
 const tabs = [
@@ -161,19 +158,7 @@ const tabs = [
   { id: 'general', label: 'General', icon: SlidersIcon }
 ]
 
-// Computed
-const apiKey = computed({
-  get: () => settingsStore.openRouterApiKey,
-  set: (value) => settingsStore.setOpenRouterApiKey(value)
-})
-
-const aiEnabled = computed(() => settingsStore.aiEnabled)
-
 // Methods
-const toggleAiEnabled = () => {
-  settingsStore.setAiEnabled(!settingsStore.aiEnabled)
-}
-
 const exportSettings = () => {
   const data = {
     settings: {

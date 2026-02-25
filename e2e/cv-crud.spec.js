@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { clearAppData, createWorkspace, createCv, goHome, navigateToWorkspace } from './helpers/app.js'
+import { clearAppData, createWorkspace, createCv } from './helpers/app.js'
 
 test.describe('CV CRUD', () => {
   const WORKSPACE = 'CV Test Workspace'
