@@ -1328,6 +1328,36 @@ describe('aiToolkit', () => {
         expect(result.success).toBe(true)
         expect(result.research).toBe('Acme Corp research.')
       })
+
+      it('supports iterating on existing research with iteration_prompt', async () => {
+        useSystemPromptsStore()
+
+        const existingResearch = 'Previous Acme Corp research.'
+        const iterationPrompt = 'Focus on recent financial performance.'
+
+        streamAndCollect.mockResolvedValueOnce('```text\nUpdated Acme Corp research.\n```')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'research_company',
+            arguments: JSON.stringify({
+              company_info: 'Acme Corp',
+              current_research: existingResearch,
+              iteration_prompt: iterationPrompt,
+            }),
+          },
+        })
+
+        expect(result.success).toBe(true)
+        expect(result.research).toBe('Updated Acme Corp research.')
+
+        // Ensure the AI call received the iteration context and prompt
+        expect(streamAndCollect).toHaveBeenCalled()
+        const firstCallArgs = streamAndCollect.mock.calls[0]
+        const serializedArgs = JSON.stringify(firstCallArgs)
+        expect(serializedArgs).toContain(existingResearch)
+        expect(serializedArgs).toContain(iterationPrompt)
+      })
     })
 
     // ── DELETION handlers ────────────────────────────
