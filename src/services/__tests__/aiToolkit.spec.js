@@ -1233,6 +1233,31 @@ describe('aiToolkit', () => {
         streamAndCollect.mockReset()
       })
 
+      it('does not duplicate :online suffix when already present', async () => {
+        useSystemPromptsStore()
+
+        const settings = useSettingsStore()
+        // Ensure taskModels exists and set companyResearch to a value that already includes :online
+        settings.taskModels = settings.taskModels || {}
+        settings.taskModels.companyResearch = 'test-model:online'
+
+        streamAndCollect.mockResolvedValue('```text\nAcme research\n```')
+
+        await executeToolCall({
+          function: {
+            name: 'research_company',
+            arguments: '{"company_info":"Acme Corp"}'
+          }
+        })
+
+        expect(streamAndCollect).toHaveBeenCalledWith(
+          'test-api-key',
+          'test-model:online',
+          expect.any(Array),
+          null
+        )
+        streamAndCollect.mockReset()
+      })
       it('extracts research from text block', async () => {
         useSystemPromptsStore()
 
