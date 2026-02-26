@@ -1212,11 +1212,46 @@ describe('aiToolkit', () => {
         expect(result.error).toContain('API key')
       })
 
-      it('returns research result on success', async () => {
-        // Need system prompt set up
+      it('appends :online to model name for web search', async () => {
         useSystemPromptsStore()
 
-        streamAndCollect.mockResolvedValueOnce('Acme Corp is a well-established company...')
+        streamAndCollect.mockResolvedValue('```text\nAcme research\n```')
+
+        await executeToolCall({
+          function: {
+            name: 'research_company',
+            arguments: '{"company_info":"Acme Corp"}'
+          }
+        })
+
+        expect(streamAndCollect).toHaveBeenCalledWith(
+          'test-api-key',
+          'test-model:online',
+          expect.any(Array),
+          null
+        )
+        streamAndCollect.mockReset()
+      })
+
+      it('extracts research from text block', async () => {
+        useSystemPromptsStore()
+
+        streamAndCollect.mockResolvedValueOnce('```text\nAcme Corp is a well-established company.\n```')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'research_company',
+            arguments: '{"company_info":"Acme Corp"}'
+          }
+        })
+        expect(result.success).toBe(true)
+        expect(result.research).toBe('Acme Corp is a well-established company.')
+      })
+
+      it('falls back to full response after retries when no text block', async () => {
+        useSystemPromptsStore()
+
+        streamAndCollect.mockResolvedValue('Acme Corp is a well-established company...')
 
         const result = await executeToolCall({
           function: {
@@ -1226,6 +1261,47 @@ describe('aiToolkit', () => {
         })
         expect(result.success).toBe(true)
         expect(result.research).toContain('Acme Corp')
+        streamAndCollect.mockReset()
+      })
+
+      it('saves research to workspace context when workspace_name and target_context_key are provided', async () => {
+        useSystemPromptsStore()
+        seedWorkspace('WS1')
+
+        streamAndCollect.mockResolvedValueOnce('```text\nAcme Corp research report.\n```')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'research_company',
+            arguments: JSON.stringify({
+              company_info: 'Acme Corp',
+              workspace_name: 'WS1',
+              target_context_key: 'company_research'
+            })
+          }
+        })
+        expect(result.success).toBe(true)
+        expect(result.research).toBe('Acme Corp research report.')
+
+        // Verify it was stored in workspace context
+        const ws = useWorkspaceStore()
+        const ctx = ws.workspaces['WS1']['company_research']
+        expect(ctx).toBeDefined()
+      })
+
+      it('returns research without saving when workspace params are omitted', async () => {
+        useSystemPromptsStore()
+
+        streamAndCollect.mockResolvedValueOnce('```text\nAcme Corp research.\n```')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'research_company',
+            arguments: '{"company_info":"Acme Corp"}'
+          }
+        })
+        expect(result.success).toBe(true)
+        expect(result.research).toBe('Acme Corp research.')
       })
     })
 
