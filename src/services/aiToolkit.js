@@ -20,7 +20,7 @@
 import * as data from './dataAccess'
 import { useSystemPromptsStore, PROMPT_TYPES } from '../stores/systemPrompts'
 import { useSettingsStore, AI_COMMAND_TYPES } from '../stores/settings'
-import { streamAndCollect, isWebSearchCompatible } from './ai'
+import { streamAndCollect } from './ai'
 import { loadAgentPrompt } from './promptLoader'
 import cvSchema from '../schemas/cvSchema.json'
 import coverLetterSchema from '../schemas/coverLetterSchema.json'
@@ -429,15 +429,17 @@ export const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'research_company',
-            description: 'Research a company and return a rich text report. Uses web search capabilities.',
+            description: 'Invoke a specialized agent to research a company using web search and save the resulting report to the workspace context.',
             parameters: {
                 type: 'object',
                 properties: {
-                    company_info: { type: 'string', description: 'Company name, URL, or description to research.' },
-                    current_research: { type: 'string', description: 'Optional. Existing research to iterate on.' },
-                    iteration_prompt: { type: 'string', description: 'Optional. Instructions for improving the existing research.' }
+                    company_info: { type: 'string', description: 'Company name, URL, or any relevant context to research.' },
+                    workspace_name: { type: 'string', description: 'Name of the workspace where the research report will be stored.' },
+                    target_context_key: { type: 'string', description: 'The workspace context key where the research report will be saved (e.g. "company_research").' },
+                    current_research: { type: 'string', description: 'Optional. Existing research content to iterate on.' },
+                    iteration_prompt: { type: 'string', description: 'Optional. Specific refinement instructions when iterating on existing research.' }
                 },
-                required: ['company_info']
+                required: ['company_info', 'workspace_name', 'target_context_key']
             }
         }
     }
@@ -1007,34 +1009,97 @@ export const setupToolHandlers = (router, _route) => {
         const apiKey = settingsStore.openRouterKey
         if (!apiKey) return { error: 'OpenRouter API key is not configured' }
 
-        const model = settingsStore.getModelForTask(AI_COMMAND_TYPES.COMPANY_RESEARCH)
+        // Get model and append :online to enable web search via OpenRouter
+        let model = settingsStore.getModelForTask(AI_COMMAND_TYPES.COMPANY_RESEARCH)
         if (!model) return { error: 'No model configured for company research' }
+        model = model.replace(/:online$/, '') + ':online'
 
+        // Determine system prompt: custom user prompt or default from file
+        let systemPromptContent
         const activePrompt = systemPromptsStore.getActivePrompt(PROMPT_TYPES.COMPANY_RESEARCH)
-        if (!activePrompt) return { error: 'No system prompt configured for company research' }
+        if (activePrompt && !activePrompt.isDefault) {
+            // User has a custom prompt selected — use it
+            systemPromptContent = activePrompt.content
+        } else {
+            // Load default agent prompt from file
+            try {
+                systemPromptContent = await loadAgentPrompt('agents/company-research.md')
+            } catch {
+                // Fallback to store default if file load fails
+                systemPromptContent = activePrompt?.content
+                if (!systemPromptContent) return { error: 'No system prompt available for company research' }
+            }
+        }
 
-        const messages = [{ role: 'system', content: activePrompt.content }]
+        // Append instruction to output in text block (appended programmatically, independent of system prompt)
+        systemPromptContent += '\n\n**REMINDER: Your company research report MUST be wrapped in a ```text``` code block. Content outside the block will be discarded.**'
 
-        let userContent = `Research the following company:\n\n${args.company_info}`
+        // Build agent messages
+        const agentMessages = [{ role: 'system', content: systemPromptContent }]
+
         if (args.current_research) {
-            userContent += `\n\n---\n\n## Current Research (to improve)\n${args.current_research}`
-        }
-        if (args.iteration_prompt) {
-            userContent += `\n\n## Iteration Instructions\n${args.iteration_prompt}`
-        }
-        messages.push({ role: 'user', content: userContent })
-
-        // Enable web search for company research
-        const streamOptions = {}
-        if (isWebSearchCompatible(model, settingsStore.availableModels || [], settingsStore.customModels || [])) {
-            streamOptions.plugins = [{ id: 'web' }]
+            // Iteration mode — refine existing research
+            agentMessages.push({
+                role: 'user',
+                content: `## Company Information\n${args.company_info}\n\n---\n\n## Current Research (to improve)\n${args.current_research}${args.iteration_prompt ? `\n\n## Iteration Instructions\n${args.iteration_prompt}` : ''}`
+            })
+        } else {
+            // New research
+            agentMessages.push({ role: 'user', content: `Research the following company:\n\n${args.company_info}` })
         }
 
-        try {
-            const result = await streamAndCollect(apiKey, model, messages, null, streamOptions)
-            return { success: true, research: result }
-        } catch (e) {
-            return { error: `Company research failed: ${e.message}` }
+        // Run the agent with web search enabled via :online model suffix
+        const MAX_RETRIES = 2
+        let research = null
+
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                const result = await streamAndCollect(apiKey, model, agentMessages, null)
+
+                // Extract content from ```text``` block
+                const textBlockMatch = result.match(/```text\s*\n([\s\S]*?)```/)
+                if (textBlockMatch && textBlockMatch[1].trim()) {
+                    research = textBlockMatch[1].trim()
+                    break
+                }
+
+                // If no text block found, ask the agent to fix it
+                if (attempt < MAX_RETRIES) {
+                    agentMessages.push({ role: 'assistant', content: result })
+                    agentMessages.push({
+                        role: 'user',
+                        content: 'Company research report MUST BE in a text block. Please provide the research report again, this time inside a ```text``` block.'
+                    })
+                } else {
+                    // Last resort: use the full response if no text block after retries
+                    research = result.trim()
+                }
+            } catch (e) {
+                return { error: `Company research failed: ${e.message}` }
+            }
         }
+
+        if (!research) {
+            return { error: 'Company research agent produced no output' }
+        }
+
+        // Save to workspace context if workspace_name and target_context_key were provided
+        if (args.workspace_name && args.target_context_key) {
+            const targetCtx = data.getWorkspaceContext(args.workspace_name, args.target_context_key)
+            let storeResult
+            if (targetCtx && !targetCtx.error && targetCtx.content) {
+                // Update existing
+                storeResult = data.editWorkspaceContext(args.workspace_name, args.target_context_key, research)
+            } else {
+                // Create new
+                storeResult = data.addWorkspaceContext(args.workspace_name, args.target_context_key, research)
+            }
+
+            if (storeResult.error) {
+                return { error: `Research completed but failed to store: ${storeResult.error}` }
+            }
+        }
+
+        return { success: true, message: 'Company research completed successfully', research }
     })
 }

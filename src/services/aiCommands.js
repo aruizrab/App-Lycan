@@ -50,7 +50,7 @@ export const AI_COMMANDS = {
         id: 'research',
         name: 'Research Company',
         description: 'Research a company for legitimacy and strategic info',
-        promptFile: 'research-command.md',
+        promptFile: 'commands/research.md',
         promptType: PROMPT_TYPES.COMPANY_RESEARCH,
         commandType: AI_COMMAND_TYPES.COMPANY_RESEARCH,
         buildUserMessage: (content) =>
