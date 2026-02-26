@@ -439,7 +439,7 @@ export const AI_TOOLS = [
                     current_research: { type: 'string', description: 'Optional. Existing research content to iterate on.' },
                     iteration_prompt: { type: 'string', description: 'Optional. Specific refinement instructions when iterating on existing research.' }
                 },
-                required: ['company_info']
+                required: ['company_info', 'workspace_name', 'target_context_key']
             }
         }
     }
