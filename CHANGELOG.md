@@ -1,3 +1,15 @@
+# [1.1.0](https://github.com/aruizrab/App-Lycan/compare/v1.0.0...v1.1.0) (2026-02-26)
+
+
+### Bug Fixes
+
+* update company research access in aiToolkit tests ([d37cbae](https://github.com/aruizrab/App-Lycan/commit/d37cbae745e04caafe1ee89f5ef8da62a072c6c1))
+
+
+### Features
+
+* implement research command workflow ([1796b70](https://github.com/aruizrab/App-Lycan/commit/1796b706def9eca63adcfa06290c03426429486d))
+
 # 1.0.0 (2026-02-26)
 
 
