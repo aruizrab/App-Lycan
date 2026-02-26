@@ -1314,6 +1314,32 @@ describe('aiToolkit', () => {
         expect(ctx).toBeDefined()
       })
 
+      it('updates existing workspace context when target_context_key already exists', async () => {
+        useSystemPromptsStore()
+        seedWorkspace('WS1')
+
+        // Pre-seed existing research for the same context key
+        const ws = useWorkspaceStore()
+        ws.workspaces['WS1']['company_research'] = 'Existing research'
+
+        streamAndCollect.mockResolvedValueOnce('```text\nAcme Corp updated research report.\n```')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'research_company',
+            arguments: JSON.stringify({
+              company_info: 'Acme Corp',
+              workspace_name: 'WS1',
+              target_context_key: 'company_research'
+            })
+          }
+        })
+
+        expect(result.success).toBe(true)
+        expect(result.research).toBe('Acme Corp updated research report.')
+        // Verify the existing workspace context entry was updated
+        expect(ws.workspaces['WS1']['company_research']).toBe('Acme Corp updated research report.')
+      })
       it('returns research without saving when workspace params are omitted', async () => {
         useSystemPromptsStore()
 
