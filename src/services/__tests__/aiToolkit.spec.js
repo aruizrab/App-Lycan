@@ -1338,7 +1338,7 @@ describe('aiToolkit', () => {
         expect(result.success).toBe(true)
         expect(result.research).toBe('Acme Corp updated research report.')
         // Verify the existing workspace context entry was updated
-        expect(ws.workspaces['WS1']['company_research']).toBe('Acme Corp updated research report.')
+        expect(ws.workspaces['WS1']['company_research'].content).toBe('Acme Corp updated research report.')
       })
       it('returns research without saving when workspace params are omitted', async () => {
         useSystemPromptsStore()
@@ -1357,6 +1357,7 @@ describe('aiToolkit', () => {
 
       it('supports iterating on existing research with iteration_prompt', async () => {
         useSystemPromptsStore()
+        streamAndCollect.mockReset()
 
         const existingResearch = 'Previous Acme Corp research.'
         const iterationPrompt = 'Focus on recent financial performance.'
