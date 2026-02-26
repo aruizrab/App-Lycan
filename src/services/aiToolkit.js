@@ -1100,6 +1100,6 @@ export const setupToolHandlers = (router, _route) => {
             }
         }
 
-        return { success: true, research }
+        return { success: true, message: 'Company research completed successfully', research }
     })
 }
