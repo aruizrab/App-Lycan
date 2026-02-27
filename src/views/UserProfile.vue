@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUserProfileStore } from '../stores/userProfile'
@@ -29,14 +29,7 @@ const fileInput = ref(null)
 
 // Form data (local copy for editing)
 const formData = ref({
-    professionalExperience: ''
-})
-
-// Load data on mount
-onMounted(() => {
-    formData.value = {
-        professionalExperience: professionalExperience.value || ''
-    }
+    professionalExperience: professionalExperience.value || ''
 })
 
 // Computed

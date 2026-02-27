@@ -14,6 +14,8 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+let isSettingContent = false
+
 const editor = useEditor({
   content: props.modelValue,
   extensions: [
@@ -26,7 +28,9 @@ const editor = useEditor({
     },
   },
   onUpdate: () => {
-    emit('update:modelValue', editor.value.getHTML())
+    if (!isSettingContent) {
+      emit('update:modelValue', editor.value.getHTML())
+    }
   },
 })
 
@@ -36,7 +40,9 @@ watch(() => props.modelValue, (value) => {
   if (isSame) {
     return
   }
+  isSettingContent = true
   editor.value.commands.setContent(value, false)
+  isSettingContent = false
 })
 
 onBeforeUnmount(() => {
