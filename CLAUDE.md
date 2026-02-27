@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Branch Strategy
+
+| Branch | Purpose |
+| --- | --- |
+| `master` | Stable released code. Only updated via merges from `develop`. |
+| `develop` | Integration branch for WIP. All feature/fix PRs target this branch. |
+| feature/fix branches | Created from `master`; PR back to `develop`. |
+
+**Workflow for any change:**
+1. `git checkout master && git pull origin master`
+2. `git checkout -b feat/your-feature` (or `fix/...`)
+3. Commit with [Conventional Commits](https://www.conventionalcommits.org/).
+4. Open a PR **to `develop`** — never directly to `master`.
+5. CI runs lint + unit + e2e tests on every PR to `develop` or `master`, and on pushes to both.
+6. Release workflow (semantic-release) runs **only on pushes to `master`**.
+
+Do **not** commit directly to `master` or `develop`.
+
 ## Commands
 
 ```bash

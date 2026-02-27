@@ -23,11 +23,32 @@ This project and everyone participating in it is governed by the [Code of Conduc
 
 ### Pull Requests
 
-1. Fork the repo and create your branch from `main`.
-2. If you've added code that should be tested, add tests.
-3. Ensure the test suite passes.
-4. Make sure your code lints.
-5. Title your Pull Request clearly.
+This project follows a **master → develop → feature branch** workflow:
+
+| Branch    | Purpose                                                         |
+| --------- | --------------------------------------------------------------- |
+| `master`  | Stable, released code. Only receives merges from `develop`.    |
+| `develop` | Integration branch for work-in-progress features and fixes.    |
+| feature/* / fix/* | Short-lived branches created from `master` (or from another feature branch when there is a dependency). |
+
+**Branch flow for a new feature or fix:**
+
+1. Create your branch from `master` (or from an existing feature branch if your work depends on it).
+   ```bash
+   git checkout master
+   git pull origin master
+   git checkout -b feat/your-feature-name
+   ```
+2. Make your changes, commit with [Conventional Commits](https://www.conventionalcommits.org/) style messages.
+3. Open a **Pull Request targeting `develop`** (not `master`).
+4. Once the PR is merged, CI runs against `develop`.
+5. When enough changes accumulate in `develop`, a maintainer will merge `develop` → `master`, triggering the release workflow.
+
+**Additional rules:**
+
+- Direct commits to `master` and `develop` are not allowed.
+- Every PR must pass lint, unit tests, and e2e tests before merging.
+- Commit messages are validated with `commitlint` on every PR.
 
 ## Development Setup
 
@@ -58,6 +79,17 @@ This project and everyone participating in it is governed by the [Code of Conduc
 
 ### Commit Messages
 
-- Use the present tense ("Add feature" not "Added feature")
-- Use the imperative mood ("Move cursor to..." not "Moves cursor to...")
-- Limit the first line to 72 characters or less
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) enforced by `commitlint`. Each commit message must follow the format:
+
+```
+<type>(<optional scope>): <short description>
+```
+
+Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
+
+Examples:
+- `feat(cv): add section reordering`
+- `fix(ai): handle empty API key gracefully`
+- `docs: update contributing guidelines`
+
+Limit the subject line to 72 characters.

@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "develop" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master", "develop" ]
 
 permissions:
   contents: write
@@ -50,6 +50,7 @@ jobs:
     name: Semantic Release
     needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    # Release only runs on direct pushes to master (i.e. when develop is merged into master)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
