@@ -35,6 +35,68 @@
 
 Do **not** commit directly to `master` or `develop`.
 
+## Commit Messages
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) enforced by `commitlint`. **Every commit must strictly follow this format** — non-conforming commits will fail CI and block merging. The commit history is the direct input to `semantic-release`, which derives version bumps and generates the CHANGELOG automatically.
+
+```
+<type>(<optional scope>): <short description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Types and their effect on semantic versioning
+
+| Type | Description | Release bump |
+| --- | --- | --- |
+| `feat` | New feature | **minor** (1.x.0) |
+| `fix` | Bug fix | **patch** (1.0.x) |
+| `perf` | Performance improvement | **patch** (1.0.x) |
+| `revert` | Revert a previous commit | **patch** (1.0.x) |
+| `docs` | Documentation only | none |
+| `style` | Formatting, whitespace | none |
+| `refactor` | Code restructure, no logic change | none |
+| `test` | Tests only | none |
+| `ci` | CI/CD config | none |
+| `chore` | Build, deps, housekeeping | none |
+
+### Breaking changes → major bump (x.0.0)
+
+Append `!` to the type **or** add a `BREAKING CHANGE:` footer:
+
+```
+feat(api)!: remove legacy endpoint
+
+BREAKING CHANGE: /v1/analyze is removed. Migrate to /v2/analyze.
+```
+
+### Scope
+
+Optional but recommended. Use lowercase short identifiers:
+`ai`, `cv`, `cover-letter`, `workspace`, `settings`, `profile`, `router`, `store`, `ui`, `deps`.
+
+### Rules
+
+- Imperative mood, lowercase first letter, no trailing period.
+- Subject line ≤ 72 characters.
+- `commitlint` validates every commit in a PR automatically.
+- Never use vague messages like `fix stuff`, `WIP`, or `update`.
+
+### Examples
+
+```
+feat(cv): add drag-and-drop section reordering
+fix(ai): handle empty API key gracefully
+perf(store): debounce localStorage writes
+docs: update contributing guidelines
+chore(deps): upgrade vite to v7
+refactor(workspace): extract job analysis to service
+test(cv): add unit tests for saveCv action
+feat(auth)!: require API key on first launch
+```
+
 ## Key Directories
 
 ```
