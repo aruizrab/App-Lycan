@@ -11,7 +11,7 @@
           <!-- Header -->
           <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-2">
-              <SettingsIcon class="w-6 h-6" />
+              <SettingsIcon class="w-6 h-6 text-gray-900 dark:text-white" />
               <h2 class="text-xl font-semibold text-gray-900 dark:text-white">AI Settings</h2>
             </div>
             <button
