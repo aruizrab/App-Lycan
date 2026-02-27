@@ -56,12 +56,12 @@
             <!-- General Settings Tab -->
             <div v-if="activeTab === 'general'" class="space-y-6">
               <div>
-                <h3 class="text-lg font-medium mb-4">Data Management</h3>
+                <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">Data Management</h3>
                 
                 <div class="space-y-4">
                   <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                     <div>
-                      <p class="font-medium">Export All Settings</p>
+                      <p class="font-medium text-gray-900 dark:text-white">Export All Settings</p>
                       <p class="text-sm text-gray-500 dark:text-gray-400">Download all AI settings as JSON</p>
                     </div>
                     <button
@@ -75,7 +75,7 @@
 
                   <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                     <div>
-                      <p class="font-medium">Import Settings</p>
+                      <p class="font-medium text-gray-900 dark:text-white">Import Settings</p>
                       <p class="text-sm text-gray-500 dark:text-gray-400">Restore settings from a JSON file</p>
                     </div>
                     <label class="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors cursor-pointer">
@@ -104,7 +104,7 @@
               <hr class="border-gray-200 dark:border-gray-700" />
 
               <div>
-                <h3 class="text-lg font-medium mb-4">About</h3>
+                <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">About</h3>
                 <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                   <p><strong>App-Lycan UI</strong> - CV & Cover Letter Builder</p>
                   <p>Version: 1.0.0</p>
