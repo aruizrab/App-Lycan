@@ -10,7 +10,7 @@
         <div class="flex gap-2">
           <!-- User Profile -->
           <button
-            @click="router.push('/profile')"
+            @click="openUserProfileModal"
             class="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
             title="User Profile"
           >
@@ -117,6 +117,12 @@
         :is-open="isSettingsModalOpen"
         @close="closeSettingsModal"
       />
+
+      <!-- User Profile Modal -->
+      <UserProfileModal
+        :is-open="isUserProfileModalOpen"
+        @close="closeUserProfileModal"
+      />
     </div>
 
     <!-- Floating AI Chat Panel -->
@@ -132,11 +138,13 @@ import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useSettingsModal } from '../composables/useSettingsModal'
+import { useUserProfileModal } from '../composables/useUserProfileModal'
 import DocumentGrid from '../components/DocumentGrid.vue'
 import DocumentList from '../components/DocumentList.vue'
 import ActionMenu from '../components/ActionMenu.vue'
 import CreateImportModal from '../components/CreateImportModal.vue'
 import SettingsModal from '../components/SettingsModal.vue'
+import UserProfileModal from '../components/UserProfileModal.vue'
 import FloatingAiChat from '../components/FloatingAiChat.vue'
 import AiAssistantButton from '../components/AiAssistantButton.vue'
 import { 
@@ -158,6 +166,7 @@ const router = useRouter()
 const route = useRoute()
 const workspaceStore = useWorkspaceStore()
 const { isSettingsModalOpen, closeSettingsModal } = useSettingsModal()
+const { isUserProfileModalOpen, openUserProfileModal, closeUserProfileModal } = useUserProfileModal()
 
 const viewMode = ref('grid')
 const showAiPanel = ref(false)
