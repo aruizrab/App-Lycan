@@ -79,17 +79,64 @@ This project follows a **master → develop → feature branch** workflow:
 
 ### Commit Messages
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/) enforced by `commitlint`. Each commit message must follow the format:
+This project enforces [Conventional Commits](https://www.conventionalcommits.org/) via `commitlint`. Every commit **must** follow this format or the CI check will fail:
 
 ```
 <type>(<optional scope>): <short description>
+
+[optional body]
+
+[optional footer(s)]
 ```
 
-Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
+#### Types and their effect on semantic versioning
 
-Examples:
-- `feat(cv): add section reordering`
-- `fix(ai): handle empty API key gracefully`
-- `docs: update contributing guidelines`
+| Type | Description | Release bump |
+| --- | --- | --- |
+| `feat` | A new feature | **minor** (1.x.0) |
+| `fix` | A bug fix | **patch** (1.0.x) |
+| `perf` | A performance improvement | **patch** (1.0.x) |
+| `revert` | Revert a previous commit | **patch** (1.0.x) |
+| `docs` | Documentation changes only | none |
+| `style` | Formatting, whitespace — no logic change | none |
+| `refactor` | Code restructure — no feature or fix | none |
+| `test` | Adding or updating tests | none |
+| `ci` | CI/CD configuration changes | none |
+| `chore` | Housekeeping (deps, build config, etc.) | none |
 
-Limit the subject line to 72 characters.
+#### Breaking changes → major bump (x.0.0)
+
+Append `!` to the type, **or** add a `BREAKING CHANGE:` footer:
+
+```
+feat(api)!: remove legacy endpoint
+
+BREAKING CHANGE: The /v1/analyze endpoint has been removed.
+Migrate to /v2/analyze.
+```
+
+#### Scope
+
+Scope is optional but recommended. Use lowercase, short identifiers that reflect the area of change:
+`ai`, `cv`, `cover-letter`, `workspace`, `settings`, `profile`, `router`, `store`, `ui`, `deps`.
+
+#### Rules
+
+- Subject line: imperative mood, no capital first letter, no period at the end.
+- Limit subject to **72 characters**.
+- Blank line between subject, body, and footers.
+- `commitlint` runs automatically on every PR — non-conforming commits will block merging.
+- Releases are fully automated by `semantic-release`; the commit history is the source of truth for versioning and the CHANGELOG.
+
+#### Examples
+
+```
+feat(cv): add drag-and-drop section reordering
+fix(ai): handle empty API key gracefully
+perf(store): debounce localStorage writes
+docs: update contributing guidelines
+chore(deps): upgrade vite to v7
+refactor(workspace): extract job analysis to service
+test(cv): add unit tests for saveCv action
+feat(auth)!: require API key on first launch
+```
