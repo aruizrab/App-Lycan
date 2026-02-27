@@ -18,6 +18,23 @@
 | PDF       | html2pdf.js                                   |
 | AI        | OpenRouter SDK (`@openrouter/sdk`)            |
 
+## Branch Strategy
+
+| Branch | Purpose |
+| --- | --- |
+| `master` | Stable released code. Only updated via merges from `develop`. |
+| `develop` | Integration branch for work-in-progress. PRs target this branch. |
+| feature/fix branches | Created from `master`; PR back to `develop`. |
+
+**When making changes:**
+1. Branch off `master` (or off a feature branch if there is a direct dependency).
+2. Commit using [Conventional Commits](https://www.conventionalcommits.org/) format.
+3. Open a PR **targeting `develop`**, never `master` directly.
+4. CI (lint + tests) runs on every PR to `develop` and `master`, and on every push to either branch.
+5. Releases are triggered automatically by merging `develop` into `master`.
+
+Do **not** commit directly to `master` or `develop`.
+
 ## Key Directories
 
 ```
