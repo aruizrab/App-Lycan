@@ -1269,11 +1269,8 @@ export const setupToolHandlers = (router, _route) => {
                         content: 'Your CV JSON MUST be wrapped in a ```json``` code block. Please provide the CV JSON again inside a ```json``` block.'
                     })
                 } else {
-                    // Try to extract JSON from the raw response
-                    const jsonMatch = result.match(/\{[\s\S]*\}/)
-                    if (jsonMatch) {
-                        cvJsonStr = jsonMatch[0]
-                    }
+                    // Last resort: use the full response if no json block after retries
+                    cvJsonStr = result.trim()
                 }
             } catch (e) {
                 return { error: `CV writing step failed: ${e.message}` }
