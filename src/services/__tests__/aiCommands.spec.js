@@ -54,10 +54,11 @@ describe('aiCommands', () => {
 
   // ─── AI_COMMANDS ────────────────────────────────────────
   describe('AI_COMMANDS', () => {
-    it('defines analyze, match, and research commands', () => {
+    it('defines analyze, match, research, and cv commands', () => {
       expect(AI_COMMANDS.analyze).toBeDefined()
       expect(AI_COMMANDS.match).toBeDefined()
       expect(AI_COMMANDS.research).toBeDefined()
+      expect(AI_COMMANDS.cv).toBeDefined()
     })
 
     it('each command has required fields', () => {
@@ -135,6 +136,28 @@ describe('aiCommands', () => {
     it('match never requires web search', () => {
       expect(AI_COMMANDS.match.requiresWebSearch).toBe(false)
     })
+
+    describe('cv.buildUserMessage', () => {
+      it('wraps content with CV name when provided', () => {
+        const msg = AI_COMMANDS.cv.buildUserMessage('Senior Dev CV')
+        expect(msg).toContain('Senior Dev CV')
+        expect(msg).toContain('Generate')
+      })
+
+      it('returns generic message when no content', () => {
+        const msg = AI_COMMANDS.cv.buildUserMessage('')
+        expect(msg).toContain('workspace')
+      })
+
+      it('returns generic message when content is null', () => {
+        const msg = AI_COMMANDS.cv.buildUserMessage(null)
+        expect(msg).toContain('workspace')
+      })
+    })
+
+    it('cv never requires web search', () => {
+      expect(AI_COMMANDS.cv.requiresWebSearch).toBe(false)
+    })
   })
 
   // ─── parseCommand ───────────────────────────────────────
@@ -155,6 +178,18 @@ describe('aiCommands', () => {
       const result = parseCommand('/research Acme Corp Inc')
       expect(result.commandId).toBe('research')
       expect(result.content).toBe('Acme Corp Inc')
+    })
+
+    it('parses /cv without content', () => {
+      const result = parseCommand('/cv')
+      expect(result.commandId).toBe('cv')
+      expect(result.content).toBe('')
+    })
+
+    it('parses /cv with a CV name', () => {
+      const result = parseCommand('/cv Senior Developer CV')
+      expect(result.commandId).toBe('cv')
+      expect(result.content).toBe('Senior Developer CV')
     })
 
     it('is case-insensitive for command names', () => {
@@ -230,6 +265,7 @@ describe('aiCommands', () => {
       expect(ids).toContain('analyze')
       expect(ids).toContain('match')
       expect(ids).toContain('research')
+      expect(ids).toContain('cv')
     })
   })
 })

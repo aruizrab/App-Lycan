@@ -58,6 +58,19 @@ export const AI_COMMANDS = {
                 ? `Research this company: ${content}`
                 : 'Research the company from the job analysis in this workspace.',
         requiresWebSearch: true
+    },
+    cv: {
+        id: 'cv',
+        name: 'Generate CV',
+        description: 'Generate a tailored CV using a multi-step AI workflow',
+        promptFile: 'commands/cv.md',
+        promptType: PROMPT_TYPES.CV_GENERATION,
+        commandType: AI_COMMAND_TYPES.CV_GENERATION,
+        buildUserMessage: (content) =>
+            content
+                ? `Generate a CV named "${content}" for this workspace.`
+                : 'Generate a tailored CV for the job in this workspace.',
+        requiresWebSearch: false
     }
 }
 

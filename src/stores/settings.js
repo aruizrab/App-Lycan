@@ -53,7 +53,29 @@ const defaultSettings = () => ({
     customModels: [],
 
     // Match report threshold (percentage)
-    matchReportThreshold: 70
+    matchReportThreshold: 70,
+
+    // Global CV requirements (used as fallback when workspace has none)
+    cvRequirements: `## CV Structure Requirements
+
+### Sections (in order)
+1. **Personal Info**: Name, professional title/role, contact details (email, phone, links)
+2. **About Me**: 2-3 sentence professional summary tailored to the target role
+3. **Experience**: Reverse chronological work history with achievements and metrics
+4. **Projects**: Notable projects with technologies used (if applicable)
+5. **Education**: Degrees and relevant coursework
+6. **Skills**: Technical and soft skills grouped by category
+7. **Languages**: Languages with proficiency levels
+
+### Constraints
+- Maximum 2 pages (1 page preferred for less than 5 years of experience)
+- Use action verbs to start bullet points
+- Quantify achievements where possible (percentages, dollar amounts, counts)
+- Tailor content to the job posting keywords
+- No personal pronouns (I, my, me)
+- Professional tone, concise language
+- Include ATS-friendly keywords from job posting
+- Dates in YYYY-MM format`
 })
 
 export const useSettingsStore = defineStore('settings', () => {

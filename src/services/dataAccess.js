@@ -268,6 +268,34 @@ export const getUserProfile = () => {
 }
 
 // =========================================================
+// READING — CV Requirements
+// =========================================================
+
+/**
+ * Get CV requirements for a workspace.
+ * Returns workspace-specific requirements if they exist,
+ * otherwise falls back to global requirements from settings.
+ * @param {string} workspaceName
+ * @returns {string} CV requirements text
+ */
+export const getCvRequirements = (workspaceName) => {
+    const { workspace, settings } = getStores()
+
+    // Check workspace-specific requirements first
+    if (workspaceName) {
+        const ws = workspace.workspaces[workspaceName]
+        if (ws && ws.cvRequirements !== null && ws.cvRequirements !== undefined) {
+            const wsReq = ws.cvRequirements
+            const content = typeof wsReq === 'object' ? (wsReq.content || '') : wsReq
+            if (content && content.trim()) return content
+        }
+    }
+
+    // Fall back to global requirements from settings
+    return settings.cvRequirements || ''
+}
+
+// =========================================================
 // CREATION
 // =========================================================
 
