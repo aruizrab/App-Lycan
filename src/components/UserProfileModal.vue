@@ -268,6 +268,12 @@ const handleImport = (event) => {
       saveMessage.value = null
     }, 3000)
   }
+  reader.onerror = () => {
+    saveMessage.value = { type: 'error', text: 'Failed to read file. Please try again.' }
+    setTimeout(() => {
+      saveMessage.value = null
+    }, 3000)
+  }
   reader.readAsText(file)
   event.target.value = ''
 }
