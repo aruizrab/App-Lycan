@@ -58,7 +58,8 @@ export const TOOL_DISPLAY_NAMES = {
     // Utility
     'job_analysis': 'Analyzing job posting',
     'generate_match_report': 'Generating match report',
-    'research_company': 'Researching company'
+    'research_company': 'Researching company',
+    'generate_cv': 'Generating CV'
 }
 
 // =========================================================
@@ -442,6 +443,22 @@ export const AI_TOOLS = [
                 required: ['company_info', 'workspace_name', 'target_context_key']
             }
         }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'generate_cv',
+            description: 'Invoke a multi-step specialized agent workflow to generate a tailored CV. The agent plans, writes, and validates the CV against user profile, job context, and CV requirements before storing it in the workspace.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    workspace_name: { type: 'string', description: 'Name of the workspace where the CV will be created.' },
+                    cv_name: { type: 'string', description: 'Name for the new CV document.' },
+                    comment: { type: 'string', description: 'Optional. Additional user instructions or preferences for the CV generation.' }
+                },
+                required: ['workspace_name', 'cv_name']
+            }
+        }
     }
 ]
 
@@ -464,6 +481,12 @@ export const COMMAND_TOOLS = {
     research: [
         'get_workspaces', 'get_workspace', 'get_workspace_context',
         'go_to', 'create_workspace', 'research_company',
+        'add_workspace_context', 'edit_workspace_context'
+    ],
+    cv: [
+        'get_workspace', 'get_workspace_context', 'get_user_profile',
+        'generate_cv',
+        'create_cv', 'edit_cv',
         'add_workspace_context', 'edit_workspace_context'
     ]
 }
@@ -1101,5 +1124,225 @@ export const setupToolHandlers = (router, _route) => {
         }
 
         return { success: true, message: 'Company research completed successfully', research }
+    })
+
+    // ── UTILITY: generate_cv ─────────────────────────────
+    registerToolHandler('generate_cv', async (args) => {
+        if (!args.workspace_name) return { error: 'workspace_name is required' }
+        if (!args.cv_name) return { error: 'cv_name is required' }
+
+        const settingsStore = useSettingsStore()
+        const systemPromptsStore = useSystemPromptsStore()
+
+        const apiKey = settingsStore.openRouterKey
+        if (!apiKey) return { error: 'OpenRouter API key is not configured' }
+
+        // Get model — strip :online suffix since agent has no web search
+        let model = settingsStore.getModelForTask(AI_COMMAND_TYPES.CV_GENERATION)
+        if (!model) return { error: 'No model configured for CV generation' }
+        model = model.replace(/:online$/, '')
+
+        // ── Gather context ──────────────────────────────────
+
+        // User profile (required)
+        const userProfile = data.getUserProfile()
+        if (!userProfile || !userProfile.trim()) {
+            return { error: 'User profile is empty. Please fill in your professional profile first.' }
+        }
+
+        // CV Requirements: workspace-specific first, then global
+        const cvRequirements = data.getCvRequirements(args.workspace_name)
+
+        // Job analysis (optional but recommended)
+        const jobCtx = data.getWorkspaceContext(args.workspace_name, 'job_analysis')
+        const jobAnalysis = (jobCtx && !jobCtx.error && jobCtx.content)
+            ? (typeof jobCtx.content === 'object' ? (jobCtx.content.content || JSON.stringify(jobCtx.content)) : jobCtx.content)
+            : ''
+
+        // Match report (optional)
+        const matchCtx = data.getWorkspaceContext(args.workspace_name, 'match_report')
+        const matchReport = (matchCtx && !matchCtx.error && matchCtx.content)
+            ? (typeof matchCtx.content === 'object' ? (matchCtx.content.content || JSON.stringify(matchCtx.content)) : matchCtx.content)
+            : ''
+
+        // ── Load system prompt ──────────────────────────────
+        let systemPromptContent
+        const activePrompt = systemPromptsStore.getActivePrompt(PROMPT_TYPES.CV_GENERATION)
+        if (activePrompt && !activePrompt.isDefault) {
+            systemPromptContent = activePrompt.content
+        } else {
+            try {
+                systemPromptContent = await loadAgentPrompt('agents/cv-generation.md')
+            } catch {
+                systemPromptContent = activePrompt?.content
+                if (!systemPromptContent) return { error: 'No system prompt available for CV generation' }
+            }
+        }
+
+        // ── Build context block ─────────────────────────────
+        let contextBlock = `## User Profile\n${userProfile}`
+
+        if (cvRequirements.trim()) {
+            contextBlock += `\n\n## CV Requirements\n${cvRequirements}`
+        }
+
+        if (jobAnalysis.trim()) {
+            contextBlock += `\n\n## Job Analysis\n${jobAnalysis}`
+        }
+
+        if (matchReport.trim()) {
+            contextBlock += `\n\n## Match Report\n${matchReport}`
+        }
+
+        // CV Schema for structured output
+        const schemaStr = JSON.stringify(cvSchema, null, 2)
+
+        // ── Step 1: PLAN ────────────────────────────────────
+        const planSystemPrompt = systemPromptContent + '\n\n**You are currently in STEP 1: PLANNING. Create a detailed plan for the CV.**'
+
+        const planMessages = [
+            { role: 'system', content: planSystemPrompt },
+            {
+                role: 'user',
+                content: `${contextBlock}${args.comment ? `\n\n## Additional Instructions\n${args.comment}` : ''}\n\nBased on the above context, create a detailed plan for writing a tailored CV. Explain what content should go in each section and why. Wrap your plan in a \`\`\`text\`\`\` code block.`
+            }
+        ]
+
+        let plan = null
+        const MAX_RETRIES = 2
+
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                const result = await streamAndCollect(apiKey, model, planMessages, null)
+
+                const textBlockMatch = result.match(/```text\s*\n([\s\S]*?)```/)
+                if (textBlockMatch && textBlockMatch[1].trim()) {
+                    plan = textBlockMatch[1].trim()
+                    break
+                }
+
+                if (attempt < MAX_RETRIES) {
+                    planMessages.push({ role: 'assistant', content: result })
+                    planMessages.push({
+                        role: 'user',
+                        content: 'Your plan MUST be wrapped in a ```text``` code block. Please provide the plan again inside a ```text``` block.'
+                    })
+                } else {
+                    plan = result.trim()
+                }
+            } catch (e) {
+                return { error: `CV planning step failed: ${e.message}` }
+            }
+        }
+
+        if (!plan) {
+            return { error: 'CV planning step produced no output' }
+        }
+
+        // ── Step 2: WRITE ───────────────────────────────────
+        const writeSystemPrompt = systemPromptContent + '\n\n**You are currently in STEP 2: WRITING. Write the CV as a JSON object following the provided schema.**'
+
+        const writeMessages = [
+            { role: 'system', content: writeSystemPrompt },
+            {
+                role: 'user',
+                content: `${contextBlock}\n\n## CV Plan\n${plan}\n\n## CV JSON Schema\n\`\`\`json\n${schemaStr}\n\`\`\`\n\nBased on the plan and context above, write the complete CV as a JSON object that conforms to the schema. The JSON must be inside the "data" property. Wrap your JSON output in a \`\`\`json\`\`\` code block.`
+            }
+        ]
+
+        let cvJsonStr = null
+
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                const result = await streamAndCollect(apiKey, model, writeMessages, null)
+
+                const jsonBlockMatch = result.match(/```json\s*\n([\s\S]*?)```/)
+                if (jsonBlockMatch && jsonBlockMatch[1].trim()) {
+                    cvJsonStr = jsonBlockMatch[1].trim()
+                    break
+                }
+
+                if (attempt < MAX_RETRIES) {
+                    writeMessages.push({ role: 'assistant', content: result })
+                    writeMessages.push({
+                        role: 'user',
+                        content: 'Your CV JSON MUST be wrapped in a ```json``` code block. Please provide the CV JSON again inside a ```json``` block.'
+                    })
+                } else {
+                    // Try to extract JSON from the raw response
+                    const jsonMatch = result.match(/\{[\s\S]*\}/)
+                    if (jsonMatch) {
+                        cvJsonStr = jsonMatch[0]
+                    }
+                }
+            } catch (e) {
+                return { error: `CV writing step failed: ${e.message}` }
+            }
+        }
+
+        if (!cvJsonStr) {
+            return { error: 'CV writing step produced no output' }
+        }
+
+        let cvData
+        try {
+            cvData = JSON.parse(cvJsonStr)
+        } catch {
+            return { error: 'CV writing step produced invalid JSON. Please try again.' }
+        }
+
+        // ── Step 3: CHECK ───────────────────────────────────
+        const checkSystemPrompt = systemPromptContent + '\n\n**You are currently in STEP 3: CHECKING. Validate the CV and fix any issues.**'
+
+        const MAX_CHECK_ITERATIONS = 2
+
+        for (let checkIter = 0; checkIter < MAX_CHECK_ITERATIONS; checkIter++) {
+            const checkMessages = [
+                { role: 'system', content: checkSystemPrompt },
+                {
+                    role: 'user',
+                    content: `## Generated CV\n\`\`\`json\n${JSON.stringify(cvData, null, 2)}\n\`\`\`\n\n## User Profile\n${userProfile}\n\n## CV Plan\n${plan}${cvRequirements.trim() ? `\n\n## CV Requirements\n${cvRequirements}` : ''}\n\nCheck this CV against:\n1. **User Profile**: Verify no information is fabricated or incorrect.\n2. **CV Plan**: Verify the plan was followed.\n3. **CV Requirements**: Verify structure and constraints are met.\n\nIf ALL checks pass, respond with exactly: CHECKS_PASSED\nIf any check fails, provide the corrected CV JSON in a \`\`\`json\`\`\` code block with a brief explanation of what was fixed.`
+                }
+            ]
+
+            try {
+                const result = await streamAndCollect(apiKey, model, checkMessages, null)
+
+                if (result.includes('CHECKS_PASSED')) {
+                    break
+                }
+
+                // Extract corrected JSON
+                const jsonBlockMatch = result.match(/```json\s*\n([\s\S]*?)```/)
+                if (jsonBlockMatch && jsonBlockMatch[1].trim()) {
+                    try {
+                        cvData = JSON.parse(jsonBlockMatch[1].trim())
+                    } catch {
+                        // If corrected JSON is invalid, keep the previous version
+                        break
+                    }
+                } else {
+                    // No corrections provided, assume it's fine
+                    break
+                }
+            } catch {
+                // Check step failed, proceed with current CV data
+                break
+            }
+        }
+
+        // ── Step 4: STORE ───────────────────────────────────
+        // Unwrap: if cvData has a "data" property, use that structure for createCv
+        const storeResult = data.createCv(args.workspace_name, args.cv_name, cvData)
+
+        if (storeResult.error) {
+            return { error: `CV generated but failed to store: ${storeResult.error}` }
+        }
+
+        return {
+            success: true,
+            message: `CV "${args.cv_name}" created in workspace "${args.workspace_name}"`,
+            plan
+        }
     })
 }
