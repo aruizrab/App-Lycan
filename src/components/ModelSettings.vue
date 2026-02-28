@@ -46,7 +46,7 @@ const COMMAND_LABELS = {
         name: 'Job Analysis',
         description: 'Analyze job postings from URL or text',
         icon: 'briefcase',
-        requiresWebSearch: true
+        requiresWebSearch: false
     },
     [AI_COMMAND_TYPES.MATCH_REPORT]: {
         name: 'Match Report',
