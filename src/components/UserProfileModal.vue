@@ -7,6 +7,9 @@
         @click.self="handleBackdropClick"
       >
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="user-profile-modal-title"
           class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
         >
           <!-- Header -->
@@ -16,7 +19,7 @@
                 <UserIcon class="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">User Profile</h2>
+                <h2 id="user-profile-modal-title" class="text-xl font-semibold text-gray-900 dark:text-white">User Profile</h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400">Your professional details for AI-powered applications</p>
               </div>
             </div>
@@ -141,7 +144,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUserProfileStore } from '../stores/userProfile'
 import RichTextEditor from './RichTextEditor.vue'
@@ -193,7 +196,7 @@ watch(
 const lastModifiedFormatted = computed(() => {
   const timestamp = lastModified.value
   if (!timestamp) return null
-  return new Date(timestamp).toLocaleDateString('en-US', {
+  return new Date(timestamp).toLocaleString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -294,6 +297,21 @@ const handleBackdropClick = () => {
     emit('close')
   }
 }
+
+// Escape key — same guard as the X button
+const handleKeyDown = (e) => {
+  if (e.key === 'Escape' && props.isOpen) {
+    handleClose()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown)
+})
 </script>
 
 <style scoped>
