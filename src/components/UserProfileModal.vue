@@ -59,7 +59,7 @@
               <!-- Close button -->
               <button
                 @click="handleClose"
-                class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-300"
                 title="Close"
               >
                 <XIcon class="w-5 h-5" />
