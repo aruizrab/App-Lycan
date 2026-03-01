@@ -1,6 +1,6 @@
 {
     "type": "object",
-    "description": "CV document data structure. Uses deep merge, so only provide fields you want to set or change.",
+    "description": "CV document data structure. In merge mode, only provide the fields you want to set or change. Object fields are deep-merged recursively. Arrays of objects that carry an 'id' field (contact, sections, sections[].items) are merged by ID: supply only the items you want to add or update — items already in the document that are NOT included in your payload are automatically preserved. Arrays without 'id' fields are replaced wholesale.",
     "properties": {
         "name": {
             "type": "string",
@@ -36,7 +36,7 @@
                         },
                         "contact": {
                             "type": "array",
-                            "description": "Contact information entries",
+                            "description": "Contact information entries. Merged by 'id' in merge mode — provide only the entries you want to add or update; existing entries not included are preserved.",
                             "items": {
                                 "type": "object",
                                 "properties": {
@@ -74,7 +74,7 @@
                 },
                 "sections": {
                     "type": "array",
-                    "description": "CV sections (experience, education, skills, etc.)",
+                    "description": "CV sections (experience, education, skills, etc.). Merged by 'id' (section type) in merge mode — supply only the sections you want to change; others are preserved. Section items inside 'items' arrays are also merged by 'id'.",
                     "items": {
                         "type": "object",
                         "properties": {

@@ -1,6 +1,6 @@
 {
     "type": "object",
-    "description": "Cover Letter document data structure. Uses deep merge, so only provide fields you want to set or change.",
+    "description": "Cover Letter document data structure. In merge mode, only provide the fields you want to set or change — all other fields are preserved.",
     "properties": {
         "name": {
             "type": "string",
