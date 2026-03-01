@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import { useChatStore } from '../chat'
 import { createChatSession } from '../../test/factories'
 
@@ -53,6 +54,7 @@ describe('chat store', () => {
       }
       localStorage.setItem('app-lycan-chat-history', JSON.stringify(saved))
 
+      setActivePinia(createPinia())
       const freshStore = useChatStore()
       expect(freshStore.currentSession.model).toBe('openai/gpt-4o-mini')
     })
@@ -73,6 +75,7 @@ describe('chat store', () => {
       }
       localStorage.setItem('app-lycan-chat-history', JSON.stringify(saved))
 
+      setActivePinia(createPinia())
       const freshStore = useChatStore()
       expect(freshStore.currentSession.model).toBe('openai/gpt-4.1')
     })
