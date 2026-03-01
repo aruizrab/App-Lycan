@@ -127,10 +127,6 @@ const currentSessionModelId = computed(() => {
     )
 })
 
-const isCurrentSessionModelListed = computed(() => {
-    return availableModelIds.value.has(currentSessionModelId.value)
-})
-
 const canSwitchModel = computed(() => {
     return messages.value.length === 0 && !isBusy.value
 })
@@ -145,25 +141,6 @@ const modelSwitchLockReason = computed(() => {
     return 'Change model for this chat'
 })
 
-const selectedChatModel = computed({
-    get: () => currentSessionModelId.value,
-    set: (modelId) => {
-        if (!canSwitchModel.value || !modelId) return
-
-        if (!currentSession.value) {
-            chatStore.createSession({
-                context: {
-                    type: props.contextType,
-                    documentId: props.documentId
-                },
-                model: modelId
-            })
-            return
-        }
-
-        chatStore.setCurrentSessionModel(modelId)
-    }
-})
 
 const filteredCommands = computed(() => {
     if (!userInput.value.startsWith('/')) return []
