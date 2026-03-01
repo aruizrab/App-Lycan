@@ -137,6 +137,7 @@ export function createChatSession(overrides = {}) {
     updatedAt: overrides.updatedAt || Date.now(),
     messages: overrides.messages || [],
     context: overrides.context || {},
+    model: overrides.model || 'openai/gpt-4o-mini',
     tokenUsage: overrides.tokenUsage || null
   }
 }

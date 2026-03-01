@@ -38,6 +38,44 @@ describe('chat store', () => {
       const freshStore = useChatStore()
       expect(freshStore.sessions).toBeDefined()
     })
+
+    it('migrates sessions without model to default', () => {
+      const saved = {
+        sessions: [{
+          id: 'legacy-session',
+          title: 'Legacy',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          messages: [],
+          context: {}
+        }],
+        currentSessionId: 'legacy-session'
+      }
+      localStorage.setItem('app-lycan-chat-history', JSON.stringify(saved))
+
+      const freshStore = useChatStore()
+      expect(freshStore.currentSession.model).toBe('openai/gpt-4o-mini')
+    })
+
+    it('derives session model from assistant metadata for legacy sessions', () => {
+      const saved = {
+        sessions: [{
+          id: 'legacy-session',
+          title: 'Legacy',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          messages: [
+            { id: 'm1', role: 'assistant', content: 'Hi', metadata: { model: 'openai/gpt-4.1:online' }, timestamp: Date.now() }
+          ],
+          context: {}
+        }],
+        currentSessionId: 'legacy-session'
+      }
+      localStorage.setItem('app-lycan-chat-history', JSON.stringify(saved))
+
+      const freshStore = useChatStore()
+      expect(freshStore.currentSession.model).toBe('openai/gpt-4.1')
+    })
   })
 
   describe('createSession', () => {
@@ -74,6 +112,16 @@ describe('chat store', () => {
       expect(store.sessions[0].id).toBe(second.id)
       expect(store.sessions[1].id).toBe(first.id)
     })
+
+    it('sets default model on session creation', () => {
+      const session = store.createSession()
+      expect(session.model).toBe('openai/gpt-4o-mini')
+    })
+
+    it('accepts a custom model on session creation', () => {
+      const session = store.createSession({ model: 'openai/gpt-4o' })
+      expect(session.model).toBe('openai/gpt-4o')
+    })
   })
 
   describe('sessionCount', () => {
@@ -107,6 +155,60 @@ describe('chat store', () => {
 
       expect(store.currentSession.context.cvId).toBe('cv-1')
       expect(store.currentSession.context.documentType).toBe('cv')
+    })
+
+    it('creates a session with provided model in structured options', () => {
+      const session = store.ensureSession({
+        context: { documentType: 'cv' },
+        model: 'anthropic/claude-3.5-sonnet'
+      })
+
+      expect(session.model).toBe('anthropic/claude-3.5-sonnet')
+      expect(store.currentSession.context.documentType).toBe('cv')
+    })
+  })
+
+  describe('session model management', () => {
+    it('gets current session model with fallback', () => {
+      store.createSession({ model: 'openai/gpt-4.1' })
+      expect(store.getCurrentSessionModel('openai/gpt-4o-mini')).toBe('openai/gpt-4.1')
+    })
+
+    it('does not overwrite valid session model when allowed list contains it', () => {
+      store.createSession({ model: 'openai/gpt-4.1' })
+
+      const resolved = store.getCurrentSessionModel('openai/gpt-4o-mini', ['openai/gpt-4.1', 'openai/gpt-4o-mini'])
+
+      expect(resolved).toBe('openai/gpt-4.1')
+      expect(store.currentSession.model).toBe('openai/gpt-4.1')
+    })
+
+    it('falls back to default when current session model is not allowed', () => {
+      store.createSession({ model: 'custom/missing-model' })
+
+      const resolved = store.getCurrentSessionModel('openai/gpt-4o-mini', ['openai/gpt-4o-mini'])
+
+      expect(resolved).toBe('openai/gpt-4o-mini')
+      expect(store.currentSession.model).toBe('openai/gpt-4o-mini')
+    })
+
+    it('updates session model when chat is empty', () => {
+      store.createSession({ model: 'openai/gpt-4o-mini' })
+
+      const changed = store.setCurrentSessionModel('openai/gpt-4.1')
+
+      expect(changed).toBe(true)
+      expect(store.currentSession.model).toBe('openai/gpt-4.1')
+    })
+
+    it('blocks session model updates after first message', () => {
+      store.createSession({ model: 'openai/gpt-4o-mini' })
+      store.addMessage({ role: 'user', content: 'Hello' })
+
+      const changed = store.setCurrentSessionModel('openai/gpt-4.1')
+
+      expect(changed).toBe(false)
+      expect(store.currentSession.model).toBe('openai/gpt-4o-mini')
     })
   })
 
@@ -510,6 +612,7 @@ describe('chat store', () => {
       const saved = JSON.parse(lastCall[1])
       expect(saved.sessions).toHaveLength(1)
       expect(saved.sessions[0].title).toBe('Saved message') // auto-titled from first message
+      expect(saved.sessions[0].model).toBe('openai/gpt-4o-mini')
     })
   })
 

@@ -2,6 +2,28 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 
 const STORAGE_KEY = 'app-lycan-chat-history'
+const DEFAULT_SESSION_MODEL = 'openai/gpt-4o-mini'
+
+const normalizeModelId = (modelId) => {
+    if (typeof modelId !== 'string') return ''
+    return modelId.endsWith(':online') ? modelId.slice(0, -7) : modelId
+}
+
+const inferSessionModel = (session, fallbackModel = DEFAULT_SESSION_MODEL) => {
+    if (session?.model) return normalizeModelId(session.model)
+
+    if (Array.isArray(session?.messages)) {
+        const assistantWithModel = [...session.messages]
+            .reverse()
+            .find(msg => msg.role === 'assistant' && msg.metadata?.model)
+
+        if (assistantWithModel?.metadata?.model) {
+            return normalizeModelId(assistantWithModel.metadata.model)
+        }
+    }
+
+    return fallbackModel
+}
 
 /**
  * Unified chat store for AI conversations
@@ -30,7 +52,12 @@ export const useChatStore = defineStore('chat', () => {
             const saved = localStorage.getItem(STORAGE_KEY)
             if (saved) {
                 const data = JSON.parse(saved)
-                sessions.value = data.sessions || []
+                sessions.value = (data.sessions || []).map((session) => ({
+                    ...session,
+                    messages: Array.isArray(session.messages) ? session.messages : [],
+                    context: session.context && typeof session.context === 'object' ? session.context : {},
+                    model: inferSessionModel(session)
+                }))
                 currentSessionId.value = data.currentSessionId || null
             }
         } catch (e) {
@@ -85,6 +112,7 @@ export const useChatStore = defineStore('chat', () => {
             updatedAt: Date.now(),
             messages: [],
             context: options.context || {},
+            model: normalizeModelId(options.model) || DEFAULT_SESSION_MODEL,
             tokenUsage: null // { promptTokens, completionTokens, totalTokens } — set after first API response
         }
         sessions.value.unshift(session) // Add to beginning
@@ -96,7 +124,12 @@ export const useChatStore = defineStore('chat', () => {
      * Get or create a session for the current context
      * Automatically creates a session if none exists
      */
-    const ensureSession = (context = {}) => {
+    const ensureSession = (options = {}) => {
+        const hasStructuredOptions = Object.prototype.hasOwnProperty.call(options, 'context') ||
+            Object.prototype.hasOwnProperty.call(options, 'model')
+        const context = hasStructuredOptions ? (options.context || {}) : options
+        const model = hasStructuredOptions ? options.model : null
+
         if (currentSession.value) {
             // Update context if provided
             if (Object.keys(context).length > 0) {
@@ -105,9 +138,14 @@ export const useChatStore = defineStore('chat', () => {
                     ...context
                 }
             }
+
+            if (!currentSession.value.model && model) {
+                currentSession.value.model = normalizeModelId(model)
+            }
+
             return currentSession.value
         }
-        return createSession({ context })
+        return createSession({ context, model })
     }
 
     /**
@@ -147,6 +185,45 @@ export const useChatStore = defineStore('chat', () => {
             session.title = title
             session.updatedAt = Date.now()
         }
+    }
+
+    /**
+     * Get the model configured for the current session
+     * @param {string} defaultModel - Fallback model if session has none
+     */
+    const getCurrentSessionModel = (defaultModel = DEFAULT_SESSION_MODEL, allowedModelIds = null) => {
+        if (!currentSession.value) return normalizeModelId(defaultModel) || DEFAULT_SESSION_MODEL
+
+        const sessionModel = normalizeModelId(currentSession.value.model)
+        const allowedModels = Array.isArray(allowedModelIds) && allowedModelIds.length > 0
+            ? new Set(allowedModelIds.map(normalizeModelId).filter(Boolean))
+            : null
+
+        if (sessionModel && (!allowedModels || allowedModels.has(sessionModel))) {
+            return sessionModel
+        }
+
+        const resolvedDefault = normalizeModelId(defaultModel) || DEFAULT_SESSION_MODEL
+        currentSession.value.model = resolvedDefault
+        currentSession.value.updatedAt = Date.now()
+        return resolvedDefault
+    }
+
+    /**
+     * Set model for current session (only allowed when no messages exist)
+     * @param {string} modelId - Model ID
+     * @returns {boolean} True when updated, false when blocked or invalid
+     */
+    const setCurrentSessionModel = (modelId) => {
+        if (!currentSession.value) return false
+        if (currentSession.value.messages.length > 0) return false
+
+        const normalized = normalizeModelId(modelId)
+        if (!normalized) return false
+
+        currentSession.value.model = normalized
+        currentSession.value.updatedAt = Date.now()
+        return true
     }
 
     /**
@@ -406,6 +483,8 @@ export const useChatStore = defineStore('chat', () => {
         selectSession,
         deleteSession,
         renameSession,
+        getCurrentSessionModel,
+        setCurrentSessionModel,
 
         // Message management
         addMessage,

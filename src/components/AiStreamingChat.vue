@@ -69,6 +69,8 @@ const showSessionList = ref(false)
 const toolsInitialized = ref(false)
 const expandedReasoning = ref(new Set())  // Track which messages have expanded reasoning
 const expandedToolCalls = ref(new Set())  // Track which tool calls have expanded parameters
+const modelSearchQuery = ref('')
+const showModelDropdown = ref(false)
 
 // Initialize tool handlers once
 onMounted(() => {
@@ -95,6 +97,74 @@ const sessions = computed(() => chatStore.sessions)
 
 const availableCommands = computed(() => getAllCommands())
 
+const normalizeModelId = (modelId) => {
+    if (typeof modelId !== 'string') return ''
+    return modelId.endsWith(':online') ? modelId.slice(0, -7) : modelId
+}
+
+const allModels = computed(() => {
+    const mergedModels = [...settingsStore.availableModels, ...settingsStore.customModels]
+    const byId = new Map()
+
+    for (const model of mergedModels) {
+        if (!model?.id || byId.has(model.id)) continue
+        byId.set(model.id, model)
+    }
+
+    return Array.from(byId.values())
+})
+
+const availableModelIds = computed(() => new Set(allModels.value.map(model => model.id)))
+
+const fallbackModelId = computed(() => {
+    return normalizeModelId(settingsStore.openRouterModel) || 'openai/gpt-4o-mini'
+})
+
+const currentSessionModelId = computed(() => {
+    return chatStore.getCurrentSessionModel(
+        fallbackModelId.value,
+        Array.from(availableModelIds.value)
+    )
+})
+
+const isCurrentSessionModelListed = computed(() => {
+    return availableModelIds.value.has(currentSessionModelId.value)
+})
+
+const canSwitchModel = computed(() => {
+    return messages.value.length === 0 && !isBusy.value
+})
+
+const modelSwitchLockReason = computed(() => {
+    if (messages.value.length > 0) {
+        return 'Model can only be changed before the first message in this chat.'
+    }
+    if (isBusy.value) {
+        return 'Please wait for the current AI task to finish.'
+    }
+    return 'Change model for this chat'
+})
+
+const selectedChatModel = computed({
+    get: () => currentSessionModelId.value,
+    set: (modelId) => {
+        if (!canSwitchModel.value || !modelId) return
+
+        if (!currentSession.value) {
+            chatStore.createSession({
+                context: {
+                    type: props.contextType,
+                    documentId: props.documentId
+                },
+                model: modelId
+            })
+            return
+        }
+
+        chatStore.setCurrentSessionModel(modelId)
+    }
+})
+
 const filteredCommands = computed(() => {
     if (!userInput.value.startsWith('/')) return []
     const query = userInput.value.slice(1).toLowerCase()
@@ -106,8 +176,18 @@ const filteredCommands = computed(() => {
 })
 
 const currentModel = computed(() => {
-    const modelId = settingsStore.openRouterModel
-    return modelId?.split('/').pop() || 'Not configured'
+    const modelId = currentSessionModelId.value
+    const model = allModels.value.find(m => m.id === modelId)
+    return model?.name || modelId?.split('/').pop() || 'Not configured'
+})
+
+const filteredModels = computed(() => {
+    if (!modelSearchQuery.value) return allModels.value
+    const query = modelSearchQuery.value.toLowerCase()
+    return allModels.value.filter(m => 
+        m.name?.toLowerCase().includes(query) || 
+        m.id?.toLowerCase().includes(query)
+    )
 })
 
 // Context window tracking
@@ -115,8 +195,7 @@ const isSummarizing = computed(() => chatStore.isSummarizing)
 const isBusy = computed(() => isLoading.value || isSummarizing.value)
 
 const modelContextLength = computed(() => {
-    const modelId = settingsStore.openRouterModel
-    const model = settingsStore.availableModels.find(m => m.id === modelId)
+    const model = allModels.value.find(m => m.id === currentSessionModelId.value)
     return model?.contextLength || 0
 })
 
@@ -250,8 +329,11 @@ const handleSend = async () => {
 
     // Ensure we have a session
     chatStore.ensureSession({
-        type: props.contextType,
-        documentId: props.documentId
+        context: {
+            type: props.contextType,
+            documentId: props.documentId
+        },
+        model: settingsStore.openRouterModel
     })
 
     // Determine user message text
@@ -307,9 +389,13 @@ const handleSend = async () => {
 
     try {
         const apiKey = settingsStore.openRouterKey
+        const sessionModel = chatStore.getCurrentSessionModel(
+            settingsStore.openRouterModel,
+            Array.from(availableModelIds.value)
+        )
         const model = commandId && cmd?.commandType
             ? settingsStore.getModelForTask(cmd.commandType)
-            : settingsStore.openRouterModel
+            : sessionModel
 
         if (!apiKey) {
             throw new Error('OpenRouter API key is not configured. Please set it in Settings.')
@@ -413,7 +499,8 @@ const createNewSession = () => {
         context: {
             type: props.contextType,
             documentId: props.documentId
-        }
+        },
+        model: settingsStore.openRouterModel
     })
     showSessionList.value = false
 }
@@ -465,10 +552,61 @@ const formatToolArguments = (args) => {
         return args
     }
 }
+
+const selectModel = (modelId) => {
+    if (!canSwitchModel.value || !modelId) return
+    
+    if (!currentSession.value) {
+        chatStore.createSession({
+            context: {
+                type: props.contextType,
+                documentId: props.documentId
+            },
+            model: modelId
+        })
+    } else {
+        chatStore.setCurrentSessionModel(modelId)
+    }
+    
+    showModelDropdown.value = false
+    modelSearchQuery.value = ''
+}
+
+const handleModelSearchBlur = () => {
+    // Delay to allow click on dropdown items
+    setTimeout(() => {
+        showModelDropdown.value = false
+        modelSearchQuery.value = ''
+    }, 200)
+}
+
+const closeModelDropdown = () => {
+    showModelDropdown.value = false
+    modelSearchQuery.value = ''
+}
+
+const toggleModelDropdown = () => {
+    if (!canSwitchModel.value) return
+    showModelDropdown.value = !showModelDropdown.value
+    if (showModelDropdown.value) {
+        modelSearchQuery.value = ''
+        nextTick(() => {
+            const input = document.querySelector('.model-search-input')
+            if (input) input.focus()
+        })
+    }
+}
 </script>
 
 <template>
     <div class="flex flex-col h-full bg-white dark:bg-gray-800">
+        <!-- Overlay for model dropdown -->
+        <div
+            v-if="showModelDropdown"
+            @click="closeModelDropdown"
+            class="fixed inset-0 z-40"
+        />
+        
         <!-- Unified Header -->
         <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
             <div class="flex items-center gap-2">
@@ -779,9 +917,61 @@ const formatToolArguments = (args) => {
 
             <!-- Footer info -->
             <div class="mt-2 flex justify-between items-center text-xs text-gray-400">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 relative">
                     <Monitor :size="12" />
-                    <span>{{ currentModel }}</span>
+                    <!-- Model selector with search -->
+                    <div class="relative">
+                        <button
+                            @click="toggleModelDropdown"
+                            :disabled="!canSwitchModel"
+                            :title="modelSwitchLockReason"
+                            class="bg-transparent text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 max-w-44 truncate disabled:opacity-60 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                        >
+                            {{ currentModel }}
+                        </button>
+
+                        <!-- Dropdown -->
+                        <div
+                            v-if="showModelDropdown"
+                            class="absolute bottom-full left-0 mb-1 w-80 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-xl z-50 overflow-hidden"
+                        >
+                            <!-- Search input -->
+                            <div class="p-2 border-b border-gray-200 dark:border-gray-700">
+                                <input
+                                    v-model="modelSearchQuery"
+                                    type="text"
+                                    placeholder="Search models..."
+                                    class="model-search-input w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    @blur="handleModelSearchBlur"
+                                    @keydown.esc="showModelDropdown = false"
+                                />
+                            </div>
+
+                            <!-- Model list -->
+                            <div class="max-h-64 overflow-y-auto">
+                                <div v-if="filteredModels.length === 0" class="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                    No models found
+                                </div>
+                                <div
+                                    v-for="model in filteredModels"
+                                    :key="model.id"
+                                    @mousedown.prevent="selectModel(model.id)"
+                                    :class="[
+                                        'px-3 py-2 cursor-pointer text-sm',
+                                        model.id === currentSessionModelId
+                                            ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                                            : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+                                    ]"
+                                >
+                                    <div class="font-medium truncate">
+                                        {{ model.name || model.id }}
+                                        <span v-if="model.webSearchCompatible" class="ml-1" title="Supports web search">🌐</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ model.id }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <span
                         v-if="modelContextLength > 0 && messages.length > 0"
                         :class="contextColorClass"
