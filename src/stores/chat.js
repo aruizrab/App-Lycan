@@ -21,6 +21,9 @@ export const useChatStore = defineStore('chat', () => {
     const streamingToolCalls = ref([])
     const streamingError = ref(null)
 
+    // Summarization state
+    const isSummarizing = ref(false)
+
     // Load from storage on init
     const loadFromStorage = () => {
         try {
@@ -81,7 +84,8 @@ export const useChatStore = defineStore('chat', () => {
             createdAt: Date.now(),
             updatedAt: Date.now(),
             messages: [],
-            context: options.context || {}
+            context: options.context || {},
+            tokenUsage: null // { promptTokens, completionTokens, totalTokens } — set after first API response
         }
         sessions.value.unshift(session) // Add to beginning
         currentSessionId.value = session.id
@@ -204,6 +208,16 @@ export const useChatStore = defineStore('chat', () => {
         // Add conversation history (excluding errors)
         for (const msg of messages.value) {
             if (msg.role === 'error') continue
+
+            // Summary messages are injected as system context
+            if (msg.metadata?.isSummary) {
+                conversationMessages.push({
+                    role: 'system',
+                    content: `## Previous Conversation Summary\n\n${msg.content}`
+                })
+                continue
+            }
+
             conversationMessages.push({
                 role: msg.role,
                 content: msg.content
@@ -316,6 +330,41 @@ export const useChatStore = defineStore('chat', () => {
         streamingError.value = null
     }
 
+    // ── Token usage tracking ──────────────────────────────────────────
+
+    /**
+     * Token usage for the current session
+     */
+    const tokenUsage = computed(() => {
+        return currentSession.value?.tokenUsage || null
+    })
+
+    /**
+     * Update token usage from an API response.
+     * @param {{ promptTokens: number, completionTokens: number, totalTokens: number } | null} usage
+     */
+    const updateTokenUsage = (usage) => {
+        if (!currentSession.value) return
+        currentSession.value.tokenUsage = usage ? { ...usage } : null
+        currentSession.value.updatedAt = Date.now()
+    }
+
+    // ── Summarization state ──────────────────────────────────────────
+
+    /**
+     * Start summarization state (freezes chat)
+     */
+    const startSummarizing = () => {
+        isSummarizing.value = true
+    }
+
+    /**
+     * Finish summarization state
+     */
+    const finishSummarizing = () => {
+        isSummarizing.value = false
+    }
+
     /**
      * Clear all sessions
      */
@@ -349,6 +398,7 @@ export const useChatStore = defineStore('chat', () => {
         streamingReasoning,
         streamingToolCalls,
         streamingError,
+        isSummarizing,
 
         // Session management
         createSession,
@@ -370,6 +420,14 @@ export const useChatStore = defineStore('chat', () => {
         finishStreaming,
         handleStreamingError,
         clearStreaming,
+
+        // Token usage
+        tokenUsage,
+        updateTokenUsage,
+
+        // Summarization
+        startSummarizing,
+        finishSummarizing,
 
         // Context
         updateContext,

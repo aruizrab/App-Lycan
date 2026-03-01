@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import {
     Loader2, Send, ChevronDown, ChevronRight,
     Sparkles, MessageSquare, Monitor, X, Plus,
-    Trash2, Settings, Wrench, Brain
+    Trash2, Settings, Wrench, Brain, BookOpen
 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat'
@@ -15,6 +15,16 @@ import { AI_COMMANDS, parseCommand, getAllCommands } from '../services/aiCommand
 import { getToolsForCommand, executeToolCall, setupToolHandlers, TOOL_DISPLAY_NAMES } from '../services/aiToolkit'
 import { loadGeneralPrompt, loadCommandPrompt } from '../services/promptLoader'
 import { useAppContext } from '../composables/useAppContext'
+import {
+    estimateTokens,
+    estimateMessagesTokens,
+    shouldSummarize,
+    getContextPercentage,
+    getContextSeverity,
+    formatTokenCount,
+    summarizeOldMessages,
+    applyConversationSummary
+} from '../services/contextManager'
 
 const props = defineProps({
     /** Current context (e.g., CV data, Cover Letter data) */
@@ -98,6 +108,46 @@ const filteredCommands = computed(() => {
 const currentModel = computed(() => {
     const modelId = settingsStore.openRouterModel
     return modelId?.split('/').pop() || 'Not configured'
+})
+
+// Context window tracking
+const isSummarizing = computed(() => chatStore.isSummarizing)
+const isBusy = computed(() => isLoading.value || isSummarizing.value)
+
+const modelContextLength = computed(() => {
+    const modelId = settingsStore.openRouterModel
+    const model = settingsStore.availableModels.find(m => m.id === modelId)
+    return model?.contextLength || 0
+})
+
+const currentTokenCount = computed(() => {
+    // Prefer actual API usage data if available
+    if (chatStore.tokenUsage?.totalTokens) {
+        return chatStore.tokenUsage.totalTokens
+    }
+    // Fall back to char-based estimation from messages
+    if (messages.value.length === 0) return 0
+    return estimateMessagesTokens(
+        messages.value
+            .filter(m => m.role !== 'error')
+            .map(m => ({ role: m.role, content: m.content || '' }))
+    )
+})
+
+const contextPercentage = computed(() => {
+    return getContextPercentage(currentTokenCount.value, modelContextLength.value)
+})
+
+const contextSeverity = computed(() => {
+    return getContextSeverity(contextPercentage.value)
+})
+
+const contextColorClass = computed(() => {
+    switch (contextSeverity.value) {
+        case 'red': return 'text-red-500'
+        case 'yellow': return 'text-amber-500'
+        default: return 'text-green-500'
+    }
 })
 
 // Methods
@@ -193,7 +243,7 @@ const buildSystemPrompt = async (commandId = null) => {
 
 const handleSend = async () => {
     const text = userInput.value.trim()
-    if (!text || isLoading.value) return
+    if (!text || isBusy.value) return
 
     // Parse for commands
     const { commandId, content } = parseCommand(text)
@@ -216,6 +266,41 @@ const handleSend = async () => {
     })
 
     userInput.value = ''
+
+    // ── Pre-send context check: summarize if nearing limit ──
+    const threshold = settingsStore.contextThreshold
+    const ctxLength = modelContextLength.value
+    const newMsgTokens = estimateTokens(displayText)
+
+    if (ctxLength > 0 && messages.value.length > 4 && shouldSummarize({
+        currentTokens: currentTokenCount.value,
+        contextLength: ctxLength,
+        threshold,
+        newMessageTokens: newMsgTokens
+    })) {
+        try {
+            chatStore.startSummarizing()
+            const { summary, removedCount } = await summarizeOldMessages({
+                messages: messages.value,
+                apiKey: settingsStore.openRouterKey,
+                model: settingsStore.summaryModel || 'openai/gpt-4o-mini',
+                keepCount: 4
+            })
+            if (summary && removedCount > 0) {
+                applyConversationSummary(
+                    chatStore.currentSession.messages,
+                    summary,
+                    removedCount
+                )
+                // Reset token usage since the conversation changed shape
+                chatStore.updateTokenUsage(null)
+            }
+        } catch (err) {
+            console.warn('[AiStreamingChat] Summarization failed, continuing without trim:', err)
+        } finally {
+            chatStore.finishSummarizing()
+        }
+    }
 
     // Start streaming
     chatStore.startStreaming()
@@ -269,6 +354,9 @@ const handleSend = async () => {
             onToolCall: (toolCall) => {
                 chatStore.addStreamingToolCall(toolCall)
                 emit('tool-executed', toolCall)
+            },
+            onUsage: (usage) => {
+                chatStore.updateTokenUsage(usage)
             },
             onRoundComplete: (roundData) => {
                 // Save each assistant message separately after each round
@@ -510,6 +598,25 @@ const formatToolArguments = (args) => {
                 </div>
 
                 <!-- Assistant message -->
+                <div v-else-if="msg.metadata?.isSummary" class="max-w-[90%]">
+                    <!-- Summary message (special styling) -->
+                    <div class="rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 overflow-hidden">
+                        <button
+                            @click="toggleReasoning(msg.id)"
+                            class="w-full px-3 py-2 flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition"
+                        >
+                            <BookOpen :size="14" />
+                            <span>Conversation summary</span>
+                            <span class="text-[10px] text-slate-400 ml-1">({{ msg.metadata.summarizedCount }} messages)</span>
+                            <ChevronRight v-if="!expandedReasoning.has(msg.id)" :size="14" class="ml-auto" />
+                            <ChevronDown v-else :size="14" class="ml-auto" />
+                        </button>
+                        <div v-if="expandedReasoning.has(msg.id)" class="px-3 py-2 text-xs text-gray-600 dark:text-gray-300 border-t border-slate-300 dark:border-slate-600 prose prose-xs dark:prose-invert max-w-none" v-html="renderMarkdown(msg.content)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Regular assistant message -->
                 <div v-else class="max-w-[90%] space-y-2">
                     <!-- Reasoning (if present) -->
                     <div v-if="msg.reasoning" class="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 overflow-hidden">
@@ -612,6 +719,15 @@ const formatToolArguments = (args) => {
             </div>
         </div>
 
+        <!-- Summarization Banner -->
+        <div
+            v-if="isSummarizing"
+            class="px-4 py-2.5 bg-purple-50 dark:bg-purple-900/30 border-t border-b border-purple-200 dark:border-purple-800 flex items-center gap-2"
+        >
+            <Loader2 :size="14" class="animate-spin text-purple-600 dark:text-purple-400" />
+            <span class="text-sm text-purple-700 dark:text-purple-300">Summarizing conversation to free up context...</span>
+        </div>
+
         <!-- Input Area -->
         <div class="p-4 border-t border-gray-200 dark:border-gray-700 relative">
             <!-- Command Menu -->
@@ -646,17 +762,17 @@ const formatToolArguments = (args) => {
                     v-model="userInput"
                     @keydown="handleKeydown"
                     placeholder="Type a message or / for commands..."
-                    :disabled="isLoading"
+                    :disabled="isBusy"
                     rows="1"
                     class="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white disabled:opacity-50 min-h-[42px] max-h-32"
                     style="field-sizing: content;"
                 />
                 <button
                     @click="handleSend"
-                    :disabled="!userInput.trim() || isLoading"
+                    :disabled="!userInput.trim() || isBusy"
                     class="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors self-end h-[42px]"
                 >
-                    <Send v-if="!isLoading" :size="18" />
+                    <Send v-if="!isBusy" :size="18" />
                     <Loader2 v-else :size="18" class="animate-spin" />
                 </button>
             </div>
@@ -666,6 +782,14 @@ const formatToolArguments = (args) => {
                 <div class="flex items-center gap-2">
                     <Monitor :size="12" />
                     <span>{{ currentModel }}</span>
+                    <span
+                        v-if="modelContextLength > 0 && messages.length > 0"
+                        :class="contextColorClass"
+                        :title="`${formatTokenCount(currentTokenCount)} / ${formatTokenCount(modelContextLength)} tokens`"
+                        class="ml-1 font-medium cursor-default"
+                    >
+                        · {{ contextPercentage }}%
+                    </span>
                 </div>
                 <div>Press / for commands</div>
             </div>

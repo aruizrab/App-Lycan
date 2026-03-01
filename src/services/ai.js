@@ -344,6 +344,19 @@ export async function* streamWithTools(apiKey, model, messages, options = {}) {
         let toolCallBuffers = new Map() // Buffer for streaming tool call arguments
 
         for await (const chunk of stream) {
+            // Capture usage data (typically present in the final chunk)
+            const usage = chunk.usage
+            if (usage) {
+                yield {
+                    type: 'usage',
+                    usage: {
+                        promptTokens: usage.prompt_tokens ?? usage.promptTokens ?? 0,
+                        completionTokens: usage.completion_tokens ?? usage.completionTokens ?? 0,
+                        totalTokens: usage.total_tokens ?? usage.totalTokens ?? 0
+                    }
+                }
+            }
+
             const choice = chunk.choices?.[0]
             if (!choice) {
                 continue
@@ -430,6 +443,7 @@ export const chatWithTools = async (apiKey, model, messages, options = {}) => {
         onReasoning,
         onToolCall: _onToolCall,
         onRoundComplete,
+        onUsage,
         executeToolCall,
         maxToolRounds = 5,
         ...streamOptions
@@ -459,6 +473,9 @@ export const chatWithTools = async (apiKey, model, messages, options = {}) => {
                     break
                 case 'tool_calls':
                     toolCalls = chunk.toolCalls
+                    break
+                case 'usage':
+                    if (onUsage) onUsage(chunk.usage)
                     break
                 case 'done':
                     finishReason = chunk.finishReason

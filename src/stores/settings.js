@@ -53,7 +53,11 @@ const defaultSettings = () => ({
     customModels: [],
 
     // Match report threshold (percentage)
-    matchReportThreshold: 70
+    matchReportThreshold: 70,
+
+    // Context management
+    contextThreshold: 80, // Percentage of context window at which to trigger summarization (0-100)
+    summaryModel: 'openai/gpt-4o-mini' // Model used for conversation summarization
 })
 
 export const useSettingsStore = defineStore('settings', () => {

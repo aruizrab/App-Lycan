@@ -42,6 +42,11 @@ describe('settings store', () => {
       expect(store.matchReportThreshold).toBe(70)
     })
 
+    it('has default context management settings', () => {
+      expect(store.contextThreshold).toBe(80)
+      expect(store.summaryModel).toBe('openai/gpt-4o-mini')
+    })
+
     it('has default task models for all command types', () => {
       expect(store.taskModels[AI_COMMAND_TYPES.JOB_ANALYSIS]).toBe('perplexity/sonar-pro')
       expect(store.taskModels[AI_COMMAND_TYPES.MATCH_REPORT]).toBe('openai/gpt-4o-mini')
@@ -307,6 +312,26 @@ describe('settings store', () => {
       expect(WEB_SEARCH_COMMANDS).not.toContain(AI_COMMAND_TYPES.MATCH_REPORT)
       expect(WEB_SEARCH_COMMANDS).not.toContain(AI_COMMAND_TYPES.CV_GENERATION)
       expect(WEB_SEARCH_COMMANDS).not.toContain(AI_COMMAND_TYPES.COVER_LETTER)
+    })
+  })
+
+  describe('context management settings', () => {
+    it('allows changing contextThreshold', () => {
+      store.contextThreshold = 70
+      expect(store.contextThreshold).toBe(70)
+    })
+
+    it('allows changing summaryModel', () => {
+      store.summaryModel = 'anthropic/claude-3.5-haiku'
+      expect(store.summaryModel).toBe('anthropic/claude-3.5-haiku')
+    })
+
+    it('persists context settings after reset', () => {
+      store.contextThreshold = 60
+      store.summaryModel = 'custom/model'
+      store.resetSettings()
+      expect(store.contextThreshold).toBe(80)
+      expect(store.summaryModel).toBe('openai/gpt-4o-mini')
     })
   })
 })

@@ -512,4 +512,79 @@ describe('chat store', () => {
       expect(saved.sessions[0].title).toBe('Saved message') // auto-titled from first message
     })
   })
+
+  describe('token usage tracking', () => {
+    it('starts with null token usage', () => {
+      store.createSession()
+      expect(store.tokenUsage).toBeNull()
+      expect(store.currentSession.tokenUsage).toBeNull()
+    })
+
+    it('updates token usage from API response', () => {
+      store.createSession()
+      store.updateTokenUsage({
+        promptTokens: 1500,
+        completionTokens: 500,
+        totalTokens: 2000
+      })
+
+      expect(store.tokenUsage).toEqual({
+        promptTokens: 1500,
+        completionTokens: 500,
+        totalTokens: 2000
+      })
+    })
+
+    it('can reset token usage to null', () => {
+      store.createSession()
+      store.updateTokenUsage({ promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+      store.updateTokenUsage(null)
+      expect(store.tokenUsage).toBeNull()
+    })
+
+    it('does nothing when no current session', () => {
+      // No session exists
+      store.updateTokenUsage({ promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+      // Should not throw
+      expect(store.tokenUsage).toBeNull()
+    })
+  })
+
+  describe('summarization state', () => {
+    it('starts with isSummarizing false', () => {
+      expect(store.isSummarizing).toBe(false)
+    })
+
+    it('can start and finish summarizing', () => {
+      store.startSummarizing()
+      expect(store.isSummarizing).toBe(true)
+
+      store.finishSummarizing()
+      expect(store.isSummarizing).toBe(false)
+    })
+  })
+
+  describe('getApiMessages with summary messages', () => {
+    it('renders summary messages as system context', () => {
+      store.createSession()
+      // Simulate a summary message in the session
+      store.currentSession.messages.push({
+        id: 'summary-1',
+        role: 'assistant',
+        content: 'Previously, the user asked about Vue.js.',
+        metadata: { isSummary: true, summarizedCount: 4 },
+        timestamp: Date.now()
+      })
+      store.addMessage({ role: 'user', content: 'Continue.' })
+
+      const apiMessages = store.getApiMessages('You are helpful.')
+
+      // system prompt + summary as system + user message
+      expect(apiMessages[0]).toEqual({ role: 'system', content: 'You are helpful.' })
+      expect(apiMessages[1].role).toBe('system')
+      expect(apiMessages[1].content).toContain('Previous Conversation Summary')
+      expect(apiMessages[1].content).toContain('Vue.js')
+      expect(apiMessages[2]).toEqual({ role: 'user', content: 'Continue.' })
+    })
+  })
 })
