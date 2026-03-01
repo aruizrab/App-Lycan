@@ -23,7 +23,8 @@
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
     "test:unit": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "prepare": "husky"
   },
   "dependencies": {
     "@openrouter/sdk": "^0.2.9",
@@ -55,12 +56,18 @@
     "autoprefixer": "^10.4.22",
     "eslint": "^9.39.2",
     "eslint-plugin-vue": "^10.7.0",
+    "husky": "^9.1.7",
     "jsdom": "^27.4.0",
+    "lint-staged": "^16.3.1",
     "postcss": "^8.5.6",
     "prettier": "^3.8.1",
     "semantic-release": "^25.0.2",
     "tailwindcss": "^4.1.17",
     "vite": "^7.2.4",
     "vitest": "^4.0.18"
+  },
+  "lint-staged": {
+    "*.{js,vue,ts}": "eslint --fix",
+    "*.{js,vue,ts,css,md,json}": "prettier --write"
   }
 }
