@@ -257,7 +257,7 @@ export const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'edit_cv',
-            description: 'Edit a CV. Provide CV data following the schema structure. Include "name" property to rename, "data" property to update content, or both.',
+            description: 'Edit a CV. Provide CV data following the schema structure. Include "name" property to rename, "data" property to update content, or both. IMPORTANT: Always call get_cv first to read the current state before editing — never rely on previously seen data from earlier in the conversation.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -267,7 +267,7 @@ export const AI_TOOLS = [
                     data_editing_mode: {
                         type: 'string',
                         enum: ['merge', 'replace'],
-                        description: 'Optional. "merge" (default) updates only provided fields; "replace" overwrites entirely.'
+                        description: 'Optional. "merge" (default): deep-merges provided fields into existing data; object fields are merged recursively, and arrays of ID-bearing items are merged by their "id" (only supply the items you want to add/change — the rest are preserved). "replace": REPLACES THE ENTIRE document data object with exactly what you provide — every field and section NOT included will be PERMANENTLY DELETED. Use replace only when intentionally overwriting the whole document.'
                     }
                 },
                 required: ['workspace_name', 'current_cv_name', 'cv_data']
@@ -278,7 +278,7 @@ export const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'edit_cover_letter',
-            description: 'Edit a Cover Letter. Provide cover letter data following the schema structure. Include "name" property to rename, "data" property to update content, or both.',
+            description: 'Edit a Cover Letter. Provide cover letter data following the schema structure. Include "name" property to rename, "data" property to update content, or both. IMPORTANT: Always call get_cover_letter first to read the current state before editing — never rely on previously seen data from earlier in the conversation.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -288,7 +288,7 @@ export const AI_TOOLS = [
                     data_editing_mode: {
                         type: 'string',
                         enum: ['merge', 'replace'],
-                        description: 'Optional. "merge" (default) updates only provided fields; "replace" overwrites entirely.'
+                        description: 'Optional. "merge" (default): deep-merges provided fields into existing data. "replace": REPLACES THE ENTIRE document data object with exactly what you provide — every field NOT included will be PERMANENTLY DELETED. Use replace only when intentionally overwriting the whole document.'
                     }
                 },
                 required: ['workspace_name', 'current_cover_letter_name', 'cover_letter_data']
