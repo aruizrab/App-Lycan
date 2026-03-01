@@ -420,7 +420,7 @@ const redo = () => {
 
       <!-- AI Panel (Both CV and Cover Letter) -->
       <div v-if="showAiPanel" 
-           class="w-full md:w-[var(--panel-width)] bg-white dark:bg-gray-800 border-l dark:border-gray-700 flex flex-col z-20 shadow-xl relative h-[calc(100vh-64px)]"
+           class="w-full md:w-[var(--panel-width)] bg-white dark:bg-gray-800 border-l dark:border-gray-700 flex flex-col z-20 shadow-xl relative h-[calc(100vh-64px)] print:hidden"
            :style="{ '--panel-width': aiPanelWidth + 'px' }">
           <!-- Resize Handle -->
           <div class="hidden md:block absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 cursor-ew-resize hover:bg-purple-500/50 transition-colors z-30"
