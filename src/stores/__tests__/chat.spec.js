@@ -25,6 +25,7 @@ describe('chat store', () => {
       expect(store.streamingReasoning).toBe('')
       expect(store.streamingToolCalls).toEqual([])
       expect(store.streamingError).toBeNull()
+      expect(store.streamingToolOutputs).toEqual({})
     })
   })
 
@@ -42,14 +43,16 @@ describe('chat store', () => {
 
     it('migrates sessions without model to default', () => {
       const saved = {
-        sessions: [{
-          id: 'legacy-session',
-          title: 'Legacy',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          messages: [],
-          context: {}
-        }],
+        sessions: [
+          {
+            id: 'legacy-session',
+            title: 'Legacy',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            messages: [],
+            context: {}
+          }
+        ],
         currentSessionId: 'legacy-session'
       }
       localStorage.setItem('app-lycan-chat-history', JSON.stringify(saved))
@@ -61,16 +64,24 @@ describe('chat store', () => {
 
     it('derives session model from assistant metadata for legacy sessions', () => {
       const saved = {
-        sessions: [{
-          id: 'legacy-session',
-          title: 'Legacy',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          messages: [
-            { id: 'm1', role: 'assistant', content: 'Hi', metadata: { model: 'openai/gpt-4.1:online' }, timestamp: Date.now() }
-          ],
-          context: {}
-        }],
+        sessions: [
+          {
+            id: 'legacy-session',
+            title: 'Legacy',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            messages: [
+              {
+                id: 'm1',
+                role: 'assistant',
+                content: 'Hi',
+                metadata: { model: 'openai/gpt-4.1:online' },
+                timestamp: Date.now()
+              }
+            ],
+            context: {}
+          }
+        ],
         currentSessionId: 'legacy-session'
       }
       localStorage.setItem('app-lycan-chat-history', JSON.stringify(saved))
@@ -180,7 +191,10 @@ describe('chat store', () => {
     it('does not overwrite valid session model when allowed list contains it', () => {
       store.createSession({ model: 'openai/gpt-4.1' })
 
-      const resolved = store.getCurrentSessionModel('openai/gpt-4o-mini', ['openai/gpt-4.1', 'openai/gpt-4o-mini'])
+      const resolved = store.getCurrentSessionModel('openai/gpt-4o-mini', [
+        'openai/gpt-4.1',
+        'openai/gpt-4o-mini'
+      ])
 
       expect(resolved).toBe('openai/gpt-4.1')
       expect(store.currentSession.model).toBe('openai/gpt-4.1')
@@ -389,7 +403,7 @@ describe('chat store', () => {
 
       const apiMessages = store.getApiMessages()
       expect(apiMessages).toHaveLength(2)
-      expect(apiMessages.find(m => m.role === 'error')).toBeUndefined()
+      expect(apiMessages.find((m) => m.role === 'error')).toBeUndefined()
     })
 
     it('injects ephemeral context before last user message', () => {
@@ -432,6 +446,7 @@ describe('chat store', () => {
       expect(store.streamingReasoning).toBe('')
       expect(store.streamingToolCalls).toEqual([])
       expect(store.streamingError).toBeNull()
+      expect(store.streamingToolOutputs).toEqual({})
     })
 
     it('updateStreamingContent updates content', () => {
@@ -563,6 +578,46 @@ describe('chat store', () => {
       expect(store.streamingReasoning).toBe('')
       expect(store.streamingToolCalls).toEqual([])
       expect(store.streamingError).toBeNull()
+      expect(store.streamingToolOutputs).toEqual({})
+    })
+  })
+
+  describe('streamingToolOutputs', () => {
+    it('initializes as empty object', () => {
+      expect(store.streamingToolOutputs).toEqual({})
+    })
+
+    it('updateToolOutput stores accumulated text by tool call ID', () => {
+      store.updateToolOutput('call_1', 'chunk', 'accumulated text')
+      expect(store.streamingToolOutputs['call_1']).toBe('accumulated text')
+    })
+
+    it('updateToolOutput tracks multiple tool calls independently', () => {
+      store.updateToolOutput('call_1', 'chunk A', 'A')
+      store.updateToolOutput('call_2', 'chunk B', 'B')
+      expect(store.streamingToolOutputs['call_1']).toBe('A')
+      expect(store.streamingToolOutputs['call_2']).toBe('B')
+    })
+
+    it('updateToolOutput overwrites with latest accumulated text', () => {
+      store.updateToolOutput('call_1', 'first', 'first')
+      store.updateToolOutput('call_1', 'second', 'first second')
+      expect(store.streamingToolOutputs['call_1']).toBe('first second')
+    })
+
+    it('startStreaming clears streamingToolOutputs', () => {
+      store.updateToolOutput('call_1', 'data', 'data')
+      store.startStreaming()
+      expect(store.streamingToolOutputs).toEqual({})
+    })
+
+    it('finishStreaming clears streamingToolOutputs', () => {
+      store.createSession()
+      store.startStreaming()
+      store.updateToolOutput('call_1', 'data', 'data')
+      store.updateStreamingContent('Answer')
+      store.finishStreaming()
+      expect(store.streamingToolOutputs).toEqual({})
     })
   })
 
@@ -608,7 +663,7 @@ describe('chat store', () => {
       store.addMessage({ role: 'user', content: 'Saved message' })
       await nextTick()
 
-      const calls = localStorage.setItem.mock.calls.filter(c => c[0] === 'app-lycan-chat-history')
+      const calls = localStorage.setItem.mock.calls.filter((c) => c[0] === 'app-lycan-chat-history')
       expect(calls.length).toBeGreaterThan(0)
 
       const lastCall = calls[calls.length - 1]
