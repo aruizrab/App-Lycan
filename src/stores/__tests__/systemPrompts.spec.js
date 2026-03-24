@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
-import { useSystemPromptsStore, PROMPT_TYPES, DEFAULT_PROMPTS } from '../systemPrompts'
+import {
+  useSystemPromptsStore,
+  PROMPT_TYPES,
+  DEFAULT_PROMPTS,
+  isValidCategoryKey
+} from '../systemPrompts'
 
 describe('systemPrompts store', () => {
   let store
@@ -11,7 +16,7 @@ describe('systemPrompts store', () => {
 
   describe('initialization', () => {
     it('initializes with all prompt types', () => {
-      Object.values(PROMPT_TYPES).forEach(type => {
+      Object.values(PROMPT_TYPES).forEach((type) => {
         expect(store[type]).toBeDefined()
         expect(store[type].default).toBeDefined()
         expect(store[type].custom).toEqual([])
@@ -20,7 +25,7 @@ describe('systemPrompts store', () => {
     })
 
     it('has default prompts for all command types', () => {
-      Object.values(PROMPT_TYPES).forEach(type => {
+      Object.values(PROMPT_TYPES).forEach((type) => {
         expect(store[type].default).toBe(DEFAULT_PROMPTS[type])
       })
     })
@@ -46,7 +51,11 @@ describe('systemPrompts store', () => {
     })
 
     it('returns custom prompt when set as active', () => {
-      const customId = store.addCustomPrompt(PROMPT_TYPES.JOB_ANALYSIS, 'My Prompt', 'Custom content')
+      const customId = store.addCustomPrompt(
+        PROMPT_TYPES.JOB_ANALYSIS,
+        'My Prompt',
+        'Custom content'
+      )
       store.setActivePrompt(PROMPT_TYPES.JOB_ANALYSIS, customId)
 
       const prompt = store.getActivePrompt(PROMPT_TYPES.JOB_ANALYSIS)
@@ -107,7 +116,7 @@ describe('systemPrompts store', () => {
       expect(id).toBeDefined()
 
       const prompts = store.getAllPrompts(PROMPT_TYPES.JOB_ANALYSIS)
-      const custom = prompts.find(p => p.id === id)
+      const custom = prompts.find((p) => p.id === id)
       expect(custom).toBeDefined()
       expect(custom.name).toBe('My Prompt')
       expect(custom.content).toBe('Custom content')
@@ -115,7 +124,7 @@ describe('systemPrompts store', () => {
 
     it('sets createdAt and lastModified timestamps', () => {
       const id = store.addCustomPrompt(PROMPT_TYPES.JOB_ANALYSIS, 'Timestamped', 'Content')
-      const prompt = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find(p => p.id === id)
+      const prompt = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find((p) => p.id === id)
       expect(prompt.createdAt).toBeDefined()
       expect(prompt.lastModified).toBeDefined()
     })
@@ -134,22 +143,24 @@ describe('systemPrompts store', () => {
       })
 
       expect(result).toBe(true)
-      const prompt = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find(p => p.id === id)
+      const prompt = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find((p) => p.id === id)
       expect(prompt.name).toBe('New Name')
       expect(prompt.content).toBe('New Content')
     })
 
     it('updates lastModified on update', () => {
       const id = store.addCustomPrompt(PROMPT_TYPES.JOB_ANALYSIS, 'Name', 'Content')
-      const before = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find(p => p.id === id).lastModified
+      const before = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find((p) => p.id === id).lastModified
 
       store.updateCustomPrompt(PROMPT_TYPES.JOB_ANALYSIS, id, { name: 'Updated' })
-      const after = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find(p => p.id === id).lastModified
+      const after = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find((p) => p.id === id).lastModified
       expect(after).toBeGreaterThanOrEqual(before)
     })
 
     it('returns false for non-existent prompt', () => {
-      expect(store.updateCustomPrompt(PROMPT_TYPES.JOB_ANALYSIS, 'non-existent', { name: 'X' })).toBe(false)
+      expect(
+        store.updateCustomPrompt(PROMPT_TYPES.JOB_ANALYSIS, 'non-existent', { name: 'X' })
+      ).toBe(false)
     })
 
     it('returns false for invalid type', () => {
@@ -198,7 +209,7 @@ describe('systemPrompts store', () => {
       const copyId = store.duplicatePrompt(PROMPT_TYPES.JOB_ANALYSIS, id)
 
       expect(copyId).toBeDefined()
-      const copy = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find(p => p.id === copyId)
+      const copy = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find((p) => p.id === copyId)
       expect(copy.name).toBe('Original (Copy)')
       expect(copy.content).toBe('Content')
     })
@@ -207,7 +218,7 @@ describe('systemPrompts store', () => {
       const copyId = store.duplicatePrompt(PROMPT_TYPES.JOB_ANALYSIS, 'default')
 
       expect(copyId).toBeDefined()
-      const copy = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find(p => p.id === copyId)
+      const copy = store[PROMPT_TYPES.JOB_ANALYSIS].custom.find((p) => p.id === copyId)
       expect(copy.name).toBe('Default (Copy)')
       expect(copy.content).toBe(DEFAULT_PROMPTS[PROMPT_TYPES.JOB_ANALYSIS])
     })
@@ -268,7 +279,15 @@ describe('systemPrompts store', () => {
 
       const toImport = {
         [PROMPT_TYPES.JOB_ANALYSIS]: {
-          custom: [{ id: 'imported-1', name: 'Imported', content: 'Imported content', createdAt: Date.now(), lastModified: Date.now() }],
+          custom: [
+            {
+              id: 'imported-1',
+              name: 'Imported',
+              content: 'Imported content',
+              createdAt: Date.now(),
+              lastModified: Date.now()
+            }
+          ],
           activeId: 'imported-1'
         }
       }
@@ -283,7 +302,15 @@ describe('systemPrompts store', () => {
 
       const toImport = {
         [PROMPT_TYPES.JOB_ANALYSIS]: {
-          custom: [{ id, name: 'Duplicate', content: 'Duplicate content', createdAt: Date.now(), lastModified: Date.now() }]
+          custom: [
+            {
+              id,
+              name: 'Duplicate',
+              content: 'Duplicate content',
+              createdAt: Date.now(),
+              lastModified: Date.now()
+            }
+          ]
         }
       }
       store.importPrompts(JSON.stringify(toImport))
@@ -297,7 +324,15 @@ describe('systemPrompts store', () => {
 
       const toImport = {
         [PROMPT_TYPES.JOB_ANALYSIS]: {
-          custom: [{ id: 'new-1', name: 'New', content: 'New content', createdAt: Date.now(), lastModified: Date.now() }],
+          custom: [
+            {
+              id: 'new-1',
+              name: 'New',
+              content: 'New content',
+              createdAt: Date.now(),
+              lastModified: Date.now()
+            }
+          ],
           activeId: 'new-1'
         }
       }
@@ -350,7 +385,178 @@ describe('systemPrompts store', () => {
 
       const freshStore = useSystemPromptsStore()
       // Default should always be the current code's default, not the saved one
-      expect(freshStore[PROMPT_TYPES.JOB_ANALYSIS].default).toBe(DEFAULT_PROMPTS[PROMPT_TYPES.JOB_ANALYSIS])
+      expect(freshStore[PROMPT_TYPES.JOB_ANALYSIS].default).toBe(
+        DEFAULT_PROMPTS[PROMPT_TYPES.JOB_ANALYSIS]
+      )
+    })
+  })
+
+  // ── Custom Category Management ──────────────────────────────
+
+  describe('isValidCategoryKey', () => {
+    it('accepts valid slug-style keys', () => {
+      expect(isValidCategoryKey('technical-review')).toBe(true)
+      expect(isValidCategoryKey('my-prompt')).toBe(true)
+      expect(isValidCategoryKey('ab')).toBe(true)
+      expect(isValidCategoryKey('test123')).toBe(true)
+    })
+
+    it('rejects invalid keys', () => {
+      expect(isValidCategoryKey('')).toBe(false)
+      expect(isValidCategoryKey('a')).toBe(false) // too short
+      expect(isValidCategoryKey('A')).toBe(false) // uppercase
+      expect(isValidCategoryKey('Has Spaces')).toBe(false)
+      expect(isValidCategoryKey('-leading')).toBe(false)
+      expect(isValidCategoryKey('trailing-')).toBe(false)
+      expect(isValidCategoryKey('UPPER')).toBe(false)
+      expect(isValidCategoryKey(123)).toBe(false)
+      expect(isValidCategoryKey(null)).toBe(false)
+    })
+  })
+
+  describe('listCategories', () => {
+    it('returns all predefined categories', () => {
+      const cats = store.listCategories()
+      const predefined = cats.filter((c) => c.isDefault)
+      expect(predefined).toHaveLength(5)
+      expect(predefined.map((c) => c.key)).toEqual(
+        expect.arrayContaining(Object.values(PROMPT_TYPES))
+      )
+    })
+
+    it('includes custom categories when added', () => {
+      store.addCategory('my-custom', 'My Custom', 'My custom prompt.')
+      const cats = store.listCategories()
+      const custom = cats.find((c) => c.key === 'my-custom')
+      expect(custom).toBeDefined()
+      expect(custom.name).toBe('My Custom')
+      expect(custom.isDefault).toBe(false)
+    })
+  })
+
+  describe('addCategory', () => {
+    it('creates a new custom category', () => {
+      const result = store.addCategory(
+        'technical-review',
+        'Technical Review',
+        'You are a technical reviewer.'
+      )
+      expect(result.success).toBe(true)
+
+      const cats = store.listCategories()
+      expect(cats.find((c) => c.key === 'technical-review')).toBeDefined()
+    })
+
+    it('initializes prompt config for new category with provided default prompt', () => {
+      store.addCategory('my-cat', 'My Category', 'My default prompt content.')
+      const prompts = store.getAllPrompts('my-cat')
+      expect(prompts).toHaveLength(1) // just default
+      expect(prompts[0].isDefault).toBe(true)
+      expect(prompts[0].content).toBe('My default prompt content.')
+    })
+
+    it('rejects invalid keys', () => {
+      const result = store.addCategory('INVALID', 'Invalid', 'Some prompt.')
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Invalid category key')
+    })
+
+    it('rejects predefined category keys', () => {
+      const result = store.addCategory('jobAnalysis', 'Job Analysis', 'Some prompt.')
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('predefined')
+    })
+
+    it('rejects duplicate custom keys', () => {
+      store.addCategory('my-cat', 'My Category', 'Some prompt.')
+      const result = store.addCategory('my-cat', 'Different Name', 'Some prompt.')
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('already exists')
+    })
+
+    it('rejects empty name', () => {
+      const result = store.addCategory('valid-key', '', 'Some prompt.')
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('name is required')
+    })
+
+    it('rejects empty default prompt', () => {
+      const result = store.addCategory('valid-key', 'Valid Name', '')
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Default prompt content is required')
+    })
+
+    it('rejects whitespace-only default prompt', () => {
+      const result = store.addCategory('valid-key', 'Valid Name', '   ')
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Default prompt content is required')
+    })
+
+    it('allows adding and using prompts in custom category', () => {
+      store.addCategory('custom-cat', 'Custom Cat', 'Default prompt for custom cat.')
+      const id = store.addCustomPrompt('custom-cat', 'My Prompt', 'Prompt content')
+      expect(id).toBeDefined()
+      store.setActivePrompt('custom-cat', id)
+      const active = store.getActivePrompt('custom-cat')
+      expect(active.content).toBe('Prompt content')
+    })
+  })
+
+  describe('removeCategory', () => {
+    it('removes a custom category', () => {
+      store.addCategory('to-remove', 'To Remove', 'Some prompt.')
+      const result = store.removeCategory('to-remove')
+      expect(result.success).toBe(true)
+
+      const cats = store.listCategories()
+      expect(cats.find((c) => c.key === 'to-remove')).toBeUndefined()
+    })
+
+    it('removes prompt data when category is deleted', () => {
+      store.addCategory('temp-cat', 'Temp', 'Some prompt.')
+      store.addCustomPrompt('temp-cat', 'Prompt', 'Content')
+      store.removeCategory('temp-cat')
+
+      expect(store.getAllPrompts('temp-cat')).toEqual([])
+      expect(store.getActivePrompt('temp-cat')).toBeNull()
+    })
+
+    it('rejects removing predefined categories', () => {
+      const result = store.removeCategory(PROMPT_TYPES.JOB_ANALYSIS)
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('predefined')
+    })
+
+    it('rejects removing non-existent category', () => {
+      const result = store.removeCategory('non-existent')
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('not found')
+    })
+  })
+
+  describe('hasCategory', () => {
+    it('returns true for predefined categories', () => {
+      expect(store.hasCategory(PROMPT_TYPES.JOB_ANALYSIS)).toBe(true)
+    })
+
+    it('returns true for custom categories', () => {
+      store.addCategory('my-cat', 'My Cat', 'Some prompt.')
+      expect(store.hasCategory('my-cat')).toBe(true)
+    })
+
+    it('returns false for non-existent categories', () => {
+      expect(store.hasCategory('non-existent')).toBe(false)
+    })
+  })
+
+  describe('custom category persistence', () => {
+    it('auto-saves custom categories to localStorage', async () => {
+      store.addCategory('persisted-cat', 'Persisted Category', 'Some prompt.')
+      await nextTick()
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        'app-lycan-system-prompt-categories',
+        expect.any(String)
+      )
     })
   })
 })
