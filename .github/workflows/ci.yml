@@ -48,7 +48,7 @@ jobs:
           # Lint only commits on the PR branch that are not already on the base branch.
           # Using git log with --no-walk on each SHA avoids the merge-commit ancestry issue
           # where --from/--to walks both sides of the history.
-          git fetch origin ${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
+          git fetch --force origin ${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
           BASE=$(git merge-base origin/${{ github.base_ref }} ${{ github.event.pull_request.head.sha }})
           echo "Linting commits from $BASE to ${{ github.event.pull_request.head.sha }}"
           npx commitlint --from "$BASE" --to ${{ github.event.pull_request.head.sha }} --verbose
