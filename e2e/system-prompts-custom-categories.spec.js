@@ -306,7 +306,8 @@ test.describe('System Prompts — Custom Categories', () => {
     // Expand the Default prompt to see its content
     // Use a precise selector to avoid ambiguity with the "Default" badge and the "Active: Default" indicator
     await page.locator('span.font-medium').filter({ hasText: /^Default$/ }).click()
-    await expect(page.getByText('You are a specialized assistant.')).toBeVisible()
+    // Target the expanded <pre> block specifically; the truncated preview <p> also contains the text
+    await expect(page.locator('pre').filter({ hasText: 'You are a specialized assistant.' })).toBeVisible()
   })
 
   test('can create a custom prompt inside a custom category', async ({ page }) => {
