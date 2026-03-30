@@ -44,7 +44,7 @@ jobs:
 
       - name: Validate Commit Messages
         if: github.event_name == 'pull_request'
-        run: npx commitlint --from $(git merge-base HEAD origin/${{ github.base_ref }}) --to ${{ github.event.pull_request.head.sha }} --verbose
+        run: npx commitlint --from $(git merge-base origin/${{ github.head_ref }} origin/${{ github.base_ref }}) --to ${{ github.event.pull_request.head.sha }} --verbose
 
   release:
     name: Semantic Release
