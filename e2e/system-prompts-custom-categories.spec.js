@@ -304,7 +304,8 @@ test.describe('System Prompts — Custom Categories', () => {
     await page.getByRole('button', { name: 'Create', exact: true }).click()
 
     // Expand the Default prompt to see its content
-    await page.getByText('Default').click()
+    // Use a precise selector to avoid ambiguity with the "Default" badge and the "Active: Default" indicator
+    await page.locator('span.font-medium').filter({ hasText: /^Default$/ }).click()
     await expect(page.getByText('You are a specialized assistant.')).toBeVisible()
   })
 
