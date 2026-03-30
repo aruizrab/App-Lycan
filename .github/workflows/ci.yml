@@ -45,11 +45,8 @@ jobs:
       - name: Validate Commit Messages
         if: github.event_name == 'pull_request'
         run: |
-          # Lint only commits on the PR branch that are not already on the base branch.
-          # Using git log with --no-walk on each SHA avoids the merge-commit ancestry issue
-          # where --from/--to walks both sides of the history.
-          git fetch --force origin ${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
-          BASE=$(git merge-base origin/${{ github.base_ref }} ${{ github.event.pull_request.head.sha }})
+          git fetch origin ${{ github.base_ref }} || true
+          BASE=$(git merge-base FETCH_HEAD ${{ github.event.pull_request.head.sha }})
           echo "Linting commits from $BASE to ${{ github.event.pull_request.head.sha }}"
           npx commitlint --from "$BASE" --to ${{ github.event.pull_request.head.sha }} --verbose
 
