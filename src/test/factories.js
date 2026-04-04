@@ -105,6 +105,8 @@ export function createSettings(overrides = {}) {
     },
     customModels: [],
     matchReportThreshold: 70,
+    contextThreshold: 80,
+    summaryModel: 'openai/gpt-4o-mini',
     ...overrides
   }
 }
@@ -134,7 +136,9 @@ export function createChatSession(overrides = {}) {
     createdAt: overrides.createdAt || Date.now(),
     updatedAt: overrides.updatedAt || Date.now(),
     messages: overrides.messages || [],
-    context: overrides.context || {}
+    context: overrides.context || {},
+    model: overrides.model || 'openai/gpt-4o-mini',
+    tokenUsage: overrides.tokenUsage || null
   }
 }
 

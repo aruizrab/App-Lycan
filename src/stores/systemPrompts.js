@@ -1,24 +1,53 @@
 import { defineStore } from 'pinia'
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, ref, watch, toRefs } from 'vue'
 
 const STORAGE_KEY = 'app-lycan-system-prompts'
+const CATEGORIES_STORAGE_KEY = 'app-lycan-system-prompt-categories'
 
 /**
- * AI Command types that support custom system prompts
+ * AI Command types that support custom system prompts (predefined categories)
  */
 export const PROMPT_TYPES = {
-    JOB_ANALYSIS: 'jobAnalysis',
-    MATCH_REPORT: 'matchReport',
-    COMPANY_RESEARCH: 'companyResearch',
-    CV_GENERATION: 'cvGeneration',
-    COVER_LETTER: 'coverLetter'
+  JOB_ANALYSIS: 'jobAnalysis',
+  MATCH_REPORT: 'matchReport',
+  COMPANY_RESEARCH: 'companyResearch',
+  CV_GENERATION: 'cvGeneration',
+  COVER_LETTER: 'coverLetter'
 }
+
+/**
+ * Display names for predefined categories
+ */
+export const PREDEFINED_CATEGORY_NAMES = {
+  [PROMPT_TYPES.JOB_ANALYSIS]: 'Job Analysis',
+  [PROMPT_TYPES.MATCH_REPORT]: 'Match Report',
+  [PROMPT_TYPES.COMPANY_RESEARCH]: 'Company Research',
+  [PROMPT_TYPES.CV_GENERATION]: 'CV Generation',
+  [PROMPT_TYPES.COVER_LETTER]: 'Cover Letter'
+}
+
+/**
+ * Validate a category key (slug-style: lowercase alphanumeric + hyphens)
+ */
+export const isValidCategoryKey = (key) => {
+  return (
+    typeof key === 'string' &&
+    /^[a-z][a-z0-9-]*[a-z0-9]$/.test(key) &&
+    key.length >= 2 &&
+    key.length <= 64
+  )
+}
+
+/**
+ * Set of predefined category keys (cannot be removed)
+ */
+const PREDEFINED_KEYS = new Set(Object.values(PROMPT_TYPES))
 
 /**
  * Default system prompts for each AI command type
  */
 export const DEFAULT_PROMPTS = {
-    [PROMPT_TYPES.JOB_ANALYSIS]: `You are an expert job analyst assistant with web search capabilities. Your task is to analyze a job posting and extract key information.
+  [PROMPT_TYPES.JOB_ANALYSIS]: `You are an expert job analyst assistant with web search capabilities. Your task is to analyze a job posting and extract key information.
 
 **CRITICAL: When given a URL, you MUST use your native web search/browsing capability to fetch and read the actual content from that URL. Do not respond without first accessing and reading the page content.**
 
@@ -51,7 +80,7 @@ Be thorough but concise. Focus on actionable information that helps with applica
 
 **Remember: If the user provides a URL, you MUST fetch and read its content before analyzing. Use your web search capability to access the page.**`,
 
-    [PROMPT_TYPES.MATCH_REPORT]: `You are an expert career advisor and recruiter. Your task is to analyze how well a candidate's profile matches a specific job opportunity.
+  [PROMPT_TYPES.MATCH_REPORT]: `You are an expert career advisor and recruiter. Your task is to analyze how well a candidate's profile matches a specific job opportunity.
 
 Given the candidate's professional profile and a job analysis, evaluate:
 
@@ -71,7 +100,7 @@ A score of 70%+ should recommend "Apply" with strategy tips.
 
 Format your response as structured HTML with clear sections.`,
 
-    [PROMPT_TYPES.COMPANY_RESEARCH]: `You are an expert business researcher and career advisor. Your task is to research a company to help a job applicant make informed decisions and prepare compelling application materials.
+  [PROMPT_TYPES.COMPANY_RESEARCH]: `You are an expert business researcher and career advisor. Your task is to research a company to help a job applicant make informed decisions and prepare compelling application materials.
 
 Research and analyze the following aspects:
 
@@ -101,7 +130,7 @@ Research and analyze the following aspects:
 Format as structured HTML. Be balanced - acknowledge both positives and concerns.
 If information is unavailable, say so rather than speculating.`,
 
-    [PROMPT_TYPES.CV_GENERATION]: `You are an expert CV/resume writer with deep knowledge of ATS systems and hiring practices.
+  [PROMPT_TYPES.CV_GENERATION]: `You are an expert CV/resume writer with deep knowledge of ATS systems and hiring practices.
 
 Your task is to help create or improve a CV based on:
 - The candidate's professional profile
@@ -128,7 +157,7 @@ Return a JSON object with:
 
 Ensure all text is grammatically correct and professionally written.`,
 
-    [PROMPT_TYPES.COVER_LETTER]: `You are an expert cover letter writer who creates compelling, personalized application letters.
+  [PROMPT_TYPES.COVER_LETTER]: `You are an expert cover letter writer who creates compelling, personalized application letters.
 
 Using the provided context (job analysis, match report, company research, user profile), craft a cover letter that:
 
@@ -157,265 +186,410 @@ Output the letter body as HTML that can be directly used in the cover letter edi
 }
 
 /**
- * Default prompts state structure
+ * Default prompts state structure (predefined categories only)
  */
 const defaultPromptsState = () => {
-    const state = {}
-    Object.values(PROMPT_TYPES).forEach(type => {
-        state[type] = {
-            default: DEFAULT_PROMPTS[type],
-            custom: [], // [{ id, name, content, createdAt, lastModified }]
-            activeId: 'default' // 'default' or custom prompt id
-        }
-    })
-    return state
+  const state = {}
+  Object.values(PROMPT_TYPES).forEach((type) => {
+    state[type] = {
+      default: DEFAULT_PROMPTS[type],
+      custom: [], // [{ id, name, content, createdAt, lastModified }]
+      activeId: 'default' // 'default' or custom prompt id
+    }
+  })
+  return state
 }
+
+/**
+ * Create empty prompt config for a custom category
+ */
+const emptyPromptConfig = () => ({
+  default: '',
+  custom: [],
+  activeId: 'default'
+})
 
 /**
  * System Prompts Store
  * Manages customizable system prompts for each AI command type
  */
 export const useSystemPromptsStore = defineStore('systemPrompts', () => {
-    const state = reactive(defaultPromptsState())
+  const state = reactive(defaultPromptsState())
 
-    /**
-     * Load prompts from localStorage
-     */
-    const loadFromStorage = () => {
-        try {
-            const saved = localStorage.getItem(STORAGE_KEY)
-            if (saved) {
-                const parsed = JSON.parse(saved)
-                // Merge with defaults to handle new prompt types added in updates
-                const defaults = defaultPromptsState()
-                Object.keys(defaults).forEach(type => {
-                    if (parsed[type]) {
-                        state[type] = {
-                            ...defaults[type],
-                            ...parsed[type],
-                            // Always use latest default prompt
-                            default: defaults[type].default
-                        }
-                    }
-                })
+  /**
+   * Custom categories registry: { [key]: { name: string, createdAt: number } }
+   */
+  const customCategories = ref({})
+
+  /**
+   * Load prompts from localStorage
+   */
+  const loadFromStorage = () => {
+    try {
+      // Load custom categories first
+      const savedCategories = localStorage.getItem(CATEGORIES_STORAGE_KEY)
+      if (savedCategories) {
+        const parsedCats = JSON.parse(savedCategories)
+        if (parsedCats && typeof parsedCats === 'object') {
+          customCategories.value = parsedCats
+        }
+      }
+
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Merge predefined categories with defaults
+        const defaults = defaultPromptsState()
+        Object.keys(defaults).forEach((type) => {
+          if (parsed[type]) {
+            state[type] = {
+              ...defaults[type],
+              ...parsed[type],
+              // Always use latest default prompt
+              default: defaults[type].default
             }
-        } catch (e) {
-            console.warn('Failed to load system prompts, using defaults', e)
-        }
-    }
-
-    /**
-     * Persist prompts to localStorage
-     */
-    const persist = () => {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-        } catch (e) {
-            console.warn('Failed to persist system prompts', e)
-        }
-    }
-
-    // Load on initialization
-    loadFromStorage()
-
-    // Auto-save on changes
-    watch(state, persist, { deep: true })
-
-    /**
-     * Get active prompt for a command type
-     */
-    const getActivePrompt = (type) => {
-        const promptConfig = state[type]
-        if (!promptConfig) return null
-
-        if (promptConfig.activeId === 'default') {
-            return {
-                id: 'default',
-                name: 'Default',
-                content: promptConfig.default,
-                isDefault: true
-            }
-        }
-
-        const customPrompt = promptConfig.custom.find(p => p.id === promptConfig.activeId)
-        if (customPrompt) {
-            return { ...customPrompt, isDefault: false }
-        }
-
-        // Fallback to default if active custom prompt not found
-        return {
-            id: 'default',
-            name: 'Default',
-            content: promptConfig.default,
-            isDefault: true
-        }
-    }
-
-    /**
-     * Get all prompts for a command type (default + custom)
-     */
-    const getAllPrompts = (type) => {
-        const promptConfig = state[type]
-        if (!promptConfig) return []
-
-        return [
-            { id: 'default', name: 'Default', content: promptConfig.default, isDefault: true },
-            ...promptConfig.custom.map(p => ({ ...p, isDefault: false }))
-        ]
-    }
-
-    /**
-     * Set active prompt for a command type
-     */
-    const setActivePrompt = (type, promptId) => {
-        if (state[type]) {
-            state[type].activeId = promptId
-        }
-    }
-
-    /**
-     * Add custom prompt
-     */
-    const addCustomPrompt = (type, name, content) => {
-        if (!state[type]) return null
-
-        const newPrompt = {
-            id: crypto.randomUUID(),
-            name,
-            content,
-            createdAt: Date.now(),
-            lastModified: Date.now()
-        }
-
-        state[type].custom.push(newPrompt)
-        return newPrompt.id
-    }
-
-    /**
-     * Update custom prompt
-     */
-    const updateCustomPrompt = (type, promptId, updates) => {
-        if (!state[type]) return false
-
-        const prompt = state[type].custom.find(p => p.id === promptId)
-        if (prompt) {
-            Object.assign(prompt, updates, { lastModified: Date.now() })
-            return true
-        }
-        return false
-    }
-
-    /**
-     * Delete custom prompt
-     */
-    const deleteCustomPrompt = (type, promptId) => {
-        if (!state[type]) return false
-
-        const index = state[type].custom.findIndex(p => p.id === promptId)
-        if (index !== -1) {
-            state[type].custom.splice(index, 1)
-            // Reset to default if deleted prompt was active
-            if (state[type].activeId === promptId) {
-                state[type].activeId = 'default'
-            }
-            return true
-        }
-        return false
-    }
-
-    /**
-     * Duplicate a prompt (custom only)
-     */
-    const duplicatePrompt = (type, promptId) => {
-        if (!state[type]) return null
-
-        let sourcePrompt
-        if (promptId === 'default') {
-            sourcePrompt = { name: 'Default', content: state[type].default }
-        } else {
-            sourcePrompt = state[type].custom.find(p => p.id === promptId)
-        }
-
-        if (!sourcePrompt) return null
-
-        return addCustomPrompt(type, `${sourcePrompt.name} (Copy)`, sourcePrompt.content)
-    }
-
-    /**
-     * Reset a command type to default prompt
-     */
-    const resetToDefault = (type) => {
-        if (state[type]) {
-            state[type].activeId = 'default'
-        }
-    }
-
-    /**
-     * Get custom prompts count for a type
-     */
-    const getCustomPromptsCount = (type) => {
-        return state[type]?.custom.length || 0
-    }
-
-    /**
-     * Export all custom prompts
-     */
-    const exportPrompts = () => {
-        const exported = {}
-        Object.keys(state).forEach(type => {
-            exported[type] = {
-                custom: state[type].custom,
-                activeId: state[type].activeId
-            }
+          }
         })
-        return JSON.stringify(exported, null, 2)
+
+        // Restore custom category prompt data
+        Object.keys(customCategories.value).forEach((key) => {
+          if (parsed[key]) {
+            state[key] = {
+              ...emptyPromptConfig(),
+              ...parsed[key],
+              default: parsed[key].default || ''
+            }
+          } else {
+            state[key] = emptyPromptConfig()
+          }
+        })
+      } else {
+        // No saved prompts — initialize custom categories with empty configs
+        Object.keys(customCategories.value).forEach((key) => {
+          state[key] = emptyPromptConfig()
+        })
+      }
+    } catch (e) {
+      console.warn('Failed to load system prompts, using defaults', e)
+    }
+  }
+
+  /**
+   * Persist prompts to localStorage
+   */
+  const persist = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(customCategories.value))
+    } catch (e) {
+      console.warn('Failed to persist system prompts', e)
+    }
+  }
+
+  // Load on initialization
+  loadFromStorage()
+
+  // Auto-save on changes
+  watch(state, persist, { deep: true })
+  watch(customCategories, persist, { deep: true })
+
+  /**
+   * Get active prompt for a command type
+   */
+  const getActivePrompt = (type) => {
+    const promptConfig = state[type]
+    if (!promptConfig) return null
+
+    if (promptConfig.activeId === 'default') {
+      return {
+        id: 'default',
+        name: 'Default',
+        content: promptConfig.default,
+        isDefault: true
+      }
     }
 
-    /**
-     * Import custom prompts
-     */
-    const importPrompts = (jsonContent, merge = true) => {
-        try {
-            const parsed = JSON.parse(jsonContent)
-
-            Object.keys(parsed).forEach(type => {
-                if (state[type] && parsed[type]) {
-                    if (merge) {
-                        // Merge: add imported prompts without duplicates
-                        const existingIds = new Set(state[type].custom.map(p => p.id))
-                        parsed[type].custom?.forEach(p => {
-                            if (!existingIds.has(p.id)) {
-                                state[type].custom.push(p)
-                            }
-                        })
-                    } else {
-                        // Replace: overwrite custom prompts
-                        state[type].custom = parsed[type].custom || []
-                        state[type].activeId = parsed[type].activeId || 'default'
-                    }
-                }
-            })
-
-            return true
-        } catch (e) {
-            console.error('Failed to import prompts', e)
-            return false
-        }
+    const customPrompt = promptConfig.custom.find((p) => p.id === promptConfig.activeId)
+    if (customPrompt) {
+      return { ...customPrompt, isDefault: false }
     }
 
+    // Fallback to default if active custom prompt not found
     return {
-        ...toRefs(state),
-        getActivePrompt,
-        getAllPrompts,
-        setActivePrompt,
-        addCustomPrompt,
-        updateCustomPrompt,
-        deleteCustomPrompt,
-        duplicatePrompt,
-        resetToDefault,
-        getCustomPromptsCount,
-        exportPrompts,
-        importPrompts,
-        PROMPT_TYPES
+      id: 'default',
+      name: 'Default',
+      content: promptConfig.default,
+      isDefault: true
     }
+  }
+
+  /**
+   * Get all prompts for a command type (default + custom)
+   */
+  const getAllPrompts = (type) => {
+    const promptConfig = state[type]
+    if (!promptConfig) return []
+
+    return [
+      { id: 'default', name: 'Default', content: promptConfig.default, isDefault: true },
+      ...promptConfig.custom.map((p) => ({ ...p, isDefault: false }))
+    ]
+  }
+
+  /**
+   * Set active prompt for a command type
+   */
+  const setActivePrompt = (type, promptId) => {
+    if (state[type]) {
+      state[type].activeId = promptId
+    }
+  }
+
+  /**
+   * Add custom prompt
+   */
+  const addCustomPrompt = (type, name, content) => {
+    if (!state[type]) return null
+
+    const newPrompt = {
+      id: crypto.randomUUID(),
+      name,
+      content,
+      createdAt: Date.now(),
+      lastModified: Date.now()
+    }
+
+    state[type].custom.push(newPrompt)
+    return newPrompt.id
+  }
+
+  /**
+   * Update custom prompt
+   */
+  const updateCustomPrompt = (type, promptId, updates) => {
+    if (!state[type]) return false
+
+    const prompt = state[type].custom.find((p) => p.id === promptId)
+    if (prompt) {
+      Object.assign(prompt, updates, { lastModified: Date.now() })
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Delete custom prompt
+   */
+  const deleteCustomPrompt = (type, promptId) => {
+    if (!state[type]) return false
+
+    const index = state[type].custom.findIndex((p) => p.id === promptId)
+    if (index !== -1) {
+      state[type].custom.splice(index, 1)
+      // Reset to default if deleted prompt was active
+      if (state[type].activeId === promptId) {
+        state[type].activeId = 'default'
+      }
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Duplicate a prompt (custom only)
+   */
+  const duplicatePrompt = (type, promptId) => {
+    if (!state[type]) return null
+
+    let sourcePrompt
+    if (promptId === 'default') {
+      sourcePrompt = { name: 'Default', content: state[type].default }
+    } else {
+      sourcePrompt = state[type].custom.find((p) => p.id === promptId)
+    }
+
+    if (!sourcePrompt) return null
+
+    return addCustomPrompt(type, `${sourcePrompt.name} (Copy)`, sourcePrompt.content)
+  }
+
+  /**
+   * Reset a command type to default prompt
+   */
+  const resetToDefault = (type) => {
+    if (state[type]) {
+      state[type].activeId = 'default'
+    }
+  }
+
+  /**
+   * Get custom prompts count for a type
+   */
+  const getCustomPromptsCount = (type) => {
+    return state[type]?.custom.length || 0
+  }
+
+  // ── Custom Category Management ──────────────────────────────
+
+  /**
+   * List all categories (predefined + custom)
+   * @returns {Array<{ key: string, name: string, isDefault: boolean }>}
+   */
+  const listCategories = () => {
+    const categories = []
+
+    // Predefined categories
+    Object.values(PROMPT_TYPES).forEach((key) => {
+      categories.push({
+        key,
+        name: PREDEFINED_CATEGORY_NAMES[key] || key,
+        isDefault: true
+      })
+    })
+
+    // Custom categories
+    Object.entries(customCategories.value).forEach(([key, cat]) => {
+      categories.push({
+        key,
+        name: cat.name,
+        isDefault: false
+      })
+    })
+
+    return categories
+  }
+
+  /**
+   * Add a new custom category
+   * @param {string} key - Slug-style key (e.g. 'technical-review')
+   * @param {string} name - Human-readable name
+   * @param {string} defaultPrompt - Default prompt content for the category
+   * @returns {{ success: boolean, error?: string }}
+   */
+  const addCategory = (key, name, defaultPrompt = '') => {
+    if (PREDEFINED_KEYS.has(key)) {
+      return { success: false, error: 'Cannot use a predefined category key.' }
+    }
+    if (!isValidCategoryKey(key)) {
+      return {
+        success: false,
+        error:
+          'Invalid category key. Use lowercase alphanumeric characters and hyphens (2-64 chars).'
+      }
+    }
+    if (customCategories.value[key]) {
+      return { success: false, error: `Category "${key}" already exists.` }
+    }
+    if (!name || !name.trim()) {
+      return { success: false, error: 'Category name is required.' }
+    }
+    if (!defaultPrompt || !defaultPrompt.trim()) {
+      return { success: false, error: 'Default prompt content is required.' }
+    }
+
+    customCategories.value[key] = {
+      name: name.trim(),
+      createdAt: Date.now()
+    }
+
+    // Initialize prompt config in state with provided default prompt
+    state[key] = { ...emptyPromptConfig(), default: defaultPrompt.trim() }
+
+    return { success: true }
+  }
+
+  /**
+   * Remove a custom category (predefined categories cannot be removed)
+   * @param {string} key - Category key to remove
+   * @returns {{ success: boolean, error?: string }}
+   */
+  const removeCategory = (key) => {
+    if (PREDEFINED_KEYS.has(key)) {
+      return { success: false, error: 'Cannot remove a predefined category.' }
+    }
+    if (!customCategories.value[key]) {
+      return { success: false, error: `Category "${key}" not found.` }
+    }
+
+    delete customCategories.value[key]
+    delete state[key]
+
+    return { success: true }
+  }
+
+  /**
+   * Check if a category key exists (predefined or custom)
+   * @param {string} key
+   * @returns {boolean}
+   */
+  const hasCategory = (key) => {
+    return PREDEFINED_KEYS.has(key) || !!customCategories.value[key]
+  }
+
+  /**
+   * Export all custom prompts
+   */
+  const exportPrompts = () => {
+    const exported = {}
+    Object.keys(state).forEach((type) => {
+      exported[type] = {
+        custom: state[type].custom,
+        activeId: state[type].activeId
+      }
+    })
+    return JSON.stringify(exported, null, 2)
+  }
+
+  /**
+   * Import custom prompts
+   */
+  const importPrompts = (jsonContent, merge = true) => {
+    try {
+      const parsed = JSON.parse(jsonContent)
+
+      Object.keys(parsed).forEach((type) => {
+        if (state[type] && parsed[type]) {
+          if (merge) {
+            // Merge: add imported prompts without duplicates
+            const existingIds = new Set(state[type].custom.map((p) => p.id))
+            parsed[type].custom?.forEach((p) => {
+              if (!existingIds.has(p.id)) {
+                state[type].custom.push(p)
+              }
+            })
+          } else {
+            // Replace: overwrite custom prompts
+            state[type].custom = parsed[type].custom || []
+            state[type].activeId = parsed[type].activeId || 'default'
+          }
+        }
+      })
+
+      return true
+    } catch (e) {
+      console.error('Failed to import prompts', e)
+      return false
+    }
+  }
+
+  return {
+    ...toRefs(state),
+    customCategories,
+    getActivePrompt,
+    getAllPrompts,
+    setActivePrompt,
+    addCustomPrompt,
+    updateCustomPrompt,
+    deleteCustomPrompt,
+    duplicatePrompt,
+    resetToDefault,
+    getCustomPromptsCount,
+    listCategories,
+    addCategory,
+    removeCategory,
+    hasCategory,
+    exportPrompts,
+    importPrompts,
+    PROMPT_TYPES
+  }
 })

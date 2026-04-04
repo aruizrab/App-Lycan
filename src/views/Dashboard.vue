@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '../stores/workspace'
 import { useRouter, useRoute } from 'vue-router'
 import { ref, computed, watch } from 'vue'
 import { useSettingsModal } from '../composables/useSettingsModal'
+import { useUserProfileModal } from '../composables/useUserProfileModal'
 import DocumentGrid from '../components/DocumentGrid.vue'
 import DocumentList from '../components/DocumentList.vue'
 import ActionMenu from '../components/ActionMenu.vue'
@@ -12,6 +13,7 @@ import CreateImportModal from '../components/CreateImportModal.vue'
 import WorkspaceContextPanel from '../components/WorkspaceContextPanel.vue'
 import WorkspaceContextModal from '../components/WorkspaceContextModal.vue'
 import SettingsModal from '../components/SettingsModal.vue'
+import UserProfileModal from '../components/UserProfileModal.vue'
 import FloatingAiChat from '../components/FloatingAiChat.vue'
 import AiAssistantButton from '../components/AiAssistantButton.vue'
 import { 
@@ -40,6 +42,7 @@ const workspaceStore = useWorkspaceStore()
 const router = useRouter()
 const route = useRoute()
 const { isSettingsModalOpen, closeSettingsModal } = useSettingsModal()
+const { isUserProfileModalOpen, openUserProfileModal, closeUserProfileModal } = useUserProfileModal()
 
 const viewMode = ref('grid') // 'grid' or 'list'
 const activeTab = ref('cv') // 'cv' or 'cover-letter'
@@ -529,7 +532,7 @@ const handleSaveCustomContext = ({ key, content }) => {
         <div class="flex gap-4">
           <!-- User Profile -->
           <button 
-            @click="router.push('/profile')" 
+            @click="openUserProfileModal" 
             class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             title="User Profile"
           >
@@ -652,6 +655,12 @@ const handleSaveCustomContext = ({ key, content }) => {
       <SettingsModal
         :is-open="isSettingsModalOpen"
         @close="closeSettingsModal"
+      />
+
+      <!-- User Profile Modal -->
+      <UserProfileModal
+        :is-open="isUserProfileModalOpen"
+        @close="closeUserProfileModal"
       />
 
       <!-- Workspace Context Modal -->

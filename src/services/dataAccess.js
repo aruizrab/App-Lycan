@@ -668,23 +668,61 @@ export const deleteWorkspaceContextWithConfirm = async (workspaceName, contextKe
 // =========================================================
 
 /**
- * Simple deep merge (target wins for non-object values)
+ * Deep merge two objects. Arrays of ID-bearing objects are merged by `id`
+ * (items are updated in place; unmatched source items are appended; target
+ * items not present in source are preserved). All other arrays are replaced.
  */
 function deepMerge(target, source) {
+    if (Array.isArray(source) && Array.isArray(target)) {
+        return mergeArraysById(target, source)
+    }
     const output = { ...target }
     for (const key of Object.keys(source)) {
         if (
-            source[key] &&
+            source[key] != null &&
             typeof source[key] === 'object' &&
-            !Array.isArray(source[key]) &&
-            target[key] &&
-            typeof target[key] === 'object' &&
-            !Array.isArray(target[key])
+            target[key] != null &&
+            typeof target[key] === 'object'
         ) {
+            // Both values are objects or arrays — recurse (handles nested arrays too)
             output[key] = deepMerge(target[key], source[key])
         } else {
             output[key] = source[key]
         }
     }
     return output
+}
+
+/**
+ * Merge two arrays by the `id` field on each item.
+ *
+ * - Source items whose `id` matches an existing target item are deep-merged
+ *   into that target item (existing fields not in source are preserved).
+ * - Source items whose `id` is not found in target are appended.
+ * - Target items not referenced by any source item are left untouched.
+ *
+ * Falls back to full replacement when source items do not carry `id` fields.
+ */
+function mergeArraysById(target, source) {
+    // Only use ID-based merge when every source item is an object with an `id`
+    const sourceHasIds =
+        source.length > 0 &&
+        source.every(item => item && typeof item === 'object' && item.id !== undefined)
+
+    if (!sourceHasIds) {
+        return source // Fallback: replace wholesale (arrays without ids)
+    }
+
+    const result = target.map(item => ({ ...item })) // shallow-copy to avoid mutations
+
+    for (const sourceItem of source) {
+        const existingIdx = result.findIndex(t => t.id === sourceItem.id)
+        if (existingIdx !== -1) {
+            result[existingIdx] = deepMerge(result[existingIdx], sourceItem)
+        } else {
+            result.push(sourceItem)
+        }
+    }
+
+    return result
 }

@@ -580,6 +580,84 @@ describe('dataAccess', () => {
       const result = editCv('WS1', 'CV1', { newCvName: 'CV2' })
       expect(result.error).toContain('already exists')
     })
+
+    it('merges contact array by id, preserving untouched entries', () => {
+      const doc = createCvDocument({
+        dataOverrides: {
+          personalInfo: {
+            contact: [
+              { id: 'email', type: 'email', value: 'old@example.com', label: 'Email' },
+              { id: 'phone', type: 'phone', value: '+1000000', label: 'Phone' }
+            ]
+          }
+        }
+      })
+      seedWorkspace('WS1', { cvs: { 'MyCv': doc } })
+      const result = editCv('WS1', 'MyCv', {
+        newCvData: {
+          personalInfo: {
+            contact: [{ id: 'email', value: 'new@example.com' }]
+          }
+        }
+      })
+      expect(result.success).toBe(true)
+      const ws = useWorkspaceStore()
+      const contact = ws.workspaces['WS1'].cvs['MyCv'].data.personalInfo.contact
+      // Updated entry
+      const emailEntry = contact.find(c => c.id === 'email')
+      expect(emailEntry.value).toBe('new@example.com')
+      expect(emailEntry.label).toBe('Email') // preserved from original
+      // Untouched entry
+      const phoneEntry = contact.find(c => c.id === 'phone')
+      expect(phoneEntry).toBeDefined()
+      expect(phoneEntry.value).toBe('+1000000')
+    })
+
+    it('merges sections array by id, preserving untouched sections', () => {
+      const doc = createCvDocument()
+      seedWorkspace('WS1', { cvs: { 'MyCv': doc } })
+      const result = editCv('WS1', 'MyCv', {
+        newCvData: {
+          sections: [{ id: 'skills', title: 'Core Skills', visible: false }]
+        }
+      })
+      expect(result.success).toBe(true)
+      const ws = useWorkspaceStore()
+      const sections = ws.workspaces['WS1'].cvs['MyCv'].data.sections
+      const skills = sections.find(s => s.id === 'skills')
+      expect(skills.title).toBe('Core Skills')
+      expect(skills.visible).toBe(false)
+      // Other sections preserved
+      const experience = sections.find(s => s.id === 'experience')
+      expect(experience).toBeDefined()
+      expect(experience.title).toBe('Experience')
+    })
+
+    it('appends a new contact entry when id is not found', () => {
+      const doc = createCvDocument({
+        dataOverrides: {
+          personalInfo: {
+            contact: [
+              { id: 'email', type: 'email', value: 'me@example.com', label: 'Email' }
+            ]
+          }
+        }
+      })
+      seedWorkspace('WS1', { cvs: { 'MyCv': doc } })
+      const result = editCv('WS1', 'MyCv', {
+        newCvData: {
+          personalInfo: {
+            contact: [{ id: 'linkedin', type: 'url', value: 'https://linkedin.com/in/me', label: 'LinkedIn' }]
+          }
+        }
+      })
+      expect(result.success).toBe(true)
+      const ws = useWorkspaceStore()
+      const contact = ws.workspaces['WS1'].cvs['MyCv'].data.personalInfo.contact
+      expect(contact.length).toBe(2)
+      expect(contact.find(c => c.id === 'email')).toBeDefined()
+      expect(contact.find(c => c.id === 'linkedin')).toBeDefined()
+    })
   })
 
   describe('editCoverLetter', () => {

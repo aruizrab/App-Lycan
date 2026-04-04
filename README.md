@@ -10,11 +10,12 @@
 **App-Lycan** is a powerful, open-source tool designed to help you create professional resumes and cover letters with ease. It combines a rich text editor, drag-and-drop layout management, and AI-powered content enhancement into a seamless, offline-first experience.
 
 ![Demo Screenshot](docs/demo-screenshot.png)
-*(Note: Add a screenshot of the application here)*
+_(Note: Add a screenshot of the application here)_
 
 ## ✨ Features
 
 ### Core Features
+
 - **🏠 Workspace Management**: Organize multiple job applications with dedicated workspaces. Each workspace can contain multiple CVs and cover letters tailored for a specific role.
 - **🎨 Visual CV Builder**:
   - Drag-and-drop sections to reorder content.
@@ -30,17 +31,20 @@
 ### 🤖 Advanced AI Features
 
 #### Unified AI Chat
+
 - **Single Interface**: One consistent AI chat accessible from Dashboard, Document Editor, and Workspace views.
 - **Persistent History**: Chat sessions saved automatically when you send a message, accessible from any view.
 - **Streaming Responses**: Real-time AI responses with smooth streaming interface.
 - **Tool Calling**: AI can directly create/edit CVs and cover letters via function calling.
 
 #### OpenRouter SDK Integration
+
 - **300+ Models**: Access to GPT-4, Claude, Gemini, Perplexity, and more via single API key.
 - **Web Search Plugin**: Live web search capabilities for job URL analysis and company research.
 - **Function Calling**: Structured tool execution for document manipulation.
 
 #### Slash Commands
+
 Type `/` in the chat to access specialized commands with autocomplete:
 
 | Command     | Purpose                                | Web Search |
@@ -52,12 +56,15 @@ Type `/` in the chat to access specialized commands with autocomplete:
 | `/cover`    | Generate personalized cover letter     | No         |
 
 #### User Profile System
+
 - **Global Professional Profile**: Rich-text editor for detailed professional experience.
 - **Context for AI**: Your profile serves as the foundation for all AI-generated content.
 - **Import/Export**: Portable JSON format for backup and sharing.
 
 #### AI Tool Calling
+
 The AI can execute actions directly through function calling:
+
 - `create_cv` / `update_cv` - Create or modify CV documents
 - `create_cover_letter` / `update_cover_letter` - Create or modify cover letters
 - `analyze_job_posting` - Extract job requirements
@@ -65,18 +72,22 @@ The AI can execute actions directly through function calling:
 - `match_profile_to_job` - Generate compatibility report
 
 #### Workspace-Scoped AI Context
+
 Each workspace maintains:
+
 - **Job Analysis**: Extracted requirements, skills, and qualifications from job postings.
 - **Match Report**: Compatibility score, strengths, gaps, and application recommendations.
 - **Company Research**: Company details, culture insights, legitimacy score, and red flags.
 
 #### Customization & Control
+
 - **Per-Task Model Settings**: Configure different AI models for each command type.
 - **Web Search Filtering**: Automatically filter model list based on web search requirements.
 - **Custom System Prompts**: Full control over AI behavior with customizable prompts per command.
 - **Match Threshold**: Configurable minimum score (default 70%) for job application recommendations.
 
 #### Smart Features
+
 - **URL Auto-Detection**: Automatically detects job posting URLs and fetches content with web search models.
 - **Context Preview**: Collapsible accordion showing exactly what context is sent to AI.
 - **Apply Button**: Review AI suggestions before applying them to your documents.
@@ -92,17 +103,20 @@ Each workspace maintains:
 ### Installation
 
 1.  **Clone the repository**
+
     ```bash
     git clone https://github.com/your-username/app-lycan.git
     cd app-lycan
     ```
 
 2.  **Install dependencies**
+
     ```bash
     npm install
     ```
 
 3.  **Run the development server**
+
     ```bash
     npm run dev
     ```
@@ -112,6 +126,7 @@ Each workspace maintains:
 ## 🔑 AI Configuration
 
 ### Quick Setup
+
 1. Navigate to **Settings** (⚙️ icon in the header) or **User Profile** (👤 icon).
 2. Enter your [OpenRouter](https://openrouter.ai/) API Key.
 3. The key is saved securely in your browser's local storage - we never see it!
@@ -119,23 +134,27 @@ Each workspace maintains:
 ### Advanced Configuration
 
 #### Model Settings
+
 - Configure different models for each AI command type (analyze, match, research, CV, cover).
 - Add custom models with web search compatibility flags.
 - Recommended models include GPT-4o, Claude Sonnet 4, Perplexity Sonar, and Gemini 2.0.
 
 #### System Prompts
+
 - Customize AI behavior with your own system prompts.
 - Create multiple prompt variations per command type.
 - Set active prompts for each command.
 - Duplicate and modify default prompts as starting points.
 
 #### User Profile
+
 1. Go to **User Profile** to set up your professional information.
 2. Add detailed professional experience using the rich text editor.
 3. Include contact information (name, email, phone, location, LinkedIn, portfolio).
 4. Your profile serves as context for all AI-generated content.
 
 ### Usage Tips
+
 - **For Job Applications**: Create a new workspace per job, use `/analyze` on the job posting, then `/match` to see compatibility.
 - **For Company Vetting**: Use `/research` with the company URL to check legitimacy and culture fit.
 - **For Quick CVs**: Use `/cv` to generate tailored CVs based on job context and your profile.
@@ -235,6 +254,7 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 ### For AI Agents / LLMs
 
 If you're an AI coding assistant working on this project:
+
 - Start with [AGENTS.md](AGENTS.md) for a quick reference guide
 - See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for design decisions and patterns
 

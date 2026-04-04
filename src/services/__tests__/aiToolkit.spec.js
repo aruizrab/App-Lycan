@@ -3,10 +3,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useUserProfileStore } from '../../stores/userProfile'
 import { useSettingsStore } from '../../stores/settings'
 import { useSystemPromptsStore } from '../../stores/systemPrompts'
-import {
-  createCvDocument,
-  createCoverLetterDocument
-} from '../../test/factories'
+import { createCvDocument, createCoverLetterDocument } from '../../test/factories'
 
 // Mock the AI service module — must include ALL exports that downstream modules (settings.js) import
 vi.mock('../ai', () => ({
@@ -20,7 +17,7 @@ vi.mock('../ai', () => ({
   performAiAction: vi.fn(),
   performAiActionWithJson: vi.fn(),
   streamWithTools: vi.fn(),
-  chatWithTools: vi.fn(),
+  chatWithTools: vi.fn()
 }))
 
 // Mock the prompt loader
@@ -85,7 +82,7 @@ describe('aiToolkit', () => {
     })
 
     it('contains expected tool names', () => {
-      const names = AI_TOOLS.map(t => t.function.name)
+      const names = AI_TOOLS.map((t) => t.function.name)
       expect(names).toContain('go_to')
       expect(names).toContain('get_workspaces')
       expect(names).toContain('create_cv')
@@ -94,13 +91,16 @@ describe('aiToolkit', () => {
       expect(names).toContain('job_analysis')
       expect(names).toContain('generate_match_report')
       expect(names).toContain('research_company')
+      expect(names).toContain('list_system_prompts')
+      expect(names).toContain('get_system_prompt')
+      expect(names).toContain('sub_agent')
     })
   })
 
   // ─── TOOL_DISPLAY_NAMES ─────────────────────────────
   describe('TOOL_DISPLAY_NAMES', () => {
     it('has a display name for every tool', () => {
-      const toolNames = AI_TOOLS.map(t => t.function.name)
+      const toolNames = AI_TOOLS.map((t) => t.function.name)
       for (const name of toolNames) {
         expect(TOOL_DISPLAY_NAMES[name]).toBeTruthy()
       }
@@ -140,14 +140,14 @@ describe('aiToolkit', () => {
 
     it('filters tools for analyze command', () => {
       const tools = getToolsForCommand('analyze')
-      const names = tools.map(t => t.function.name)
+      const names = tools.map((t) => t.function.name)
       expect(names).toContain('job_analysis')
       expect(names).not.toContain('create_cv')
     })
 
     it('filters tools for match command', () => {
       const tools = getToolsForCommand('match')
-      const names = tools.map(t => t.function.name)
+      const names = tools.map((t) => t.function.name)
       expect(names).toContain('generate_match_report')
       expect(names).toContain('get_user_profile')
       expect(names).not.toContain('go_to')
@@ -155,7 +155,7 @@ describe('aiToolkit', () => {
 
     it('filters tools for research command', () => {
       const tools = getToolsForCommand('research')
-      const names = tools.map(t => t.function.name)
+      const names = tools.map((t) => t.function.name)
       expect(names).toContain('research_company')
       expect(names).not.toContain('create_cv')
     })
@@ -264,7 +264,7 @@ describe('aiToolkit', () => {
       })
 
       it('returns workspace summaries', async () => {
-        seedWorkspace('TestWS', { cvs: { 'CV1': createCvDocument() } })
+        seedWorkspace('TestWS', { cvs: { CV1: createCvDocument() } })
         const result = await executeToolCall({
           function: { name: 'get_workspaces', arguments: '{}' }
         })
@@ -274,7 +274,7 @@ describe('aiToolkit', () => {
 
       it('returns multiple workspaces', async () => {
         seedWorkspace('WS-A')
-        seedWorkspace('WS-B', { cvs: { 'CV1': createCvDocument() } })
+        seedWorkspace('WS-B', { cvs: { CV1: createCvDocument() } })
         const result = await executeToolCall({
           function: { name: 'get_workspaces', arguments: '{}' }
         })
@@ -308,7 +308,7 @@ describe('aiToolkit', () => {
 
     describe('get_cv', () => {
       it('returns CV data', async () => {
-        seedWorkspace('WS1', { cvs: { 'MyCv': createCvDocument() } })
+        seedWorkspace('WS1', { cvs: { MyCv: createCvDocument() } })
         const result = await executeToolCall({
           function: {
             name: 'get_cv',
@@ -354,7 +354,7 @@ describe('aiToolkit', () => {
     describe('get_cover_letter', () => {
       it('returns cover letter data', async () => {
         seedWorkspace('WS1', {
-          coverLetters: { 'MyCL': createCoverLetterDocument() }
+          coverLetters: { MyCL: createCoverLetterDocument() }
         })
         const result = await executeToolCall({
           function: {
@@ -589,7 +589,9 @@ describe('aiToolkit', () => {
 
       it('returns error when context_key already exists', async () => {
         seedWorkspace('WS1', {
-          extra: { my_notes: { content: 'existing', createdAt: Date.now(), lastModified: Date.now() } }
+          extra: {
+            my_notes: { content: 'existing', createdAt: Date.now(), lastModified: Date.now() }
+          }
         })
         const result = await executeToolCall({
           function: {
@@ -667,7 +669,7 @@ describe('aiToolkit', () => {
 
     describe('edit_cv', () => {
       it('edits CV via tool call', async () => {
-        seedWorkspace('WS1', { cvs: { 'MyCv': createCvDocument() } })
+        seedWorkspace('WS1', { cvs: { MyCv: createCvDocument() } })
         const result = await executeToolCall({
           function: {
             name: 'edit_cv',
@@ -713,7 +715,7 @@ describe('aiToolkit', () => {
       })
 
       it('renames CV when cv_data.name provided', async () => {
-        seedWorkspace('WS1', { cvs: { 'OldCV': createCvDocument() } })
+        seedWorkspace('WS1', { cvs: { OldCV: createCvDocument() } })
         const result = await executeToolCall({
           function: {
             name: 'edit_cv',
@@ -733,7 +735,7 @@ describe('aiToolkit', () => {
     describe('edit_cover_letter', () => {
       it('edits cover letter via tool call', async () => {
         seedWorkspace('WS1', {
-          coverLetters: { 'MyCL': createCoverLetterDocument() }
+          coverLetters: { MyCL: createCoverLetterDocument() }
         })
         const result = await executeToolCall({
           function: {
@@ -871,7 +873,7 @@ describe('aiToolkit', () => {
       })
 
       it('navigates to cv_editor', async () => {
-        seedWorkspace('WS1', { cvs: { 'MyCv': createCvDocument() } })
+        seedWorkspace('WS1', { cvs: { MyCv: createCvDocument() } })
         const result = await executeToolCall({
           function: {
             name: 'go_to',
@@ -1261,7 +1263,9 @@ describe('aiToolkit', () => {
       it('extracts research from text block', async () => {
         useSystemPromptsStore()
 
-        streamAndCollect.mockResolvedValueOnce('```text\nAcme Corp is a well-established company.\n```')
+        streamAndCollect.mockResolvedValueOnce(
+          '```text\nAcme Corp is a well-established company.\n```'
+        )
 
         const result = await executeToolCall({
           function: {
@@ -1338,7 +1342,9 @@ describe('aiToolkit', () => {
         expect(result.success).toBe(true)
         expect(result.research).toBe('Acme Corp updated research report.')
         // Verify the existing workspace context entry was updated
-        expect(ws.workspaces['WS1']['company_research'].content).toBe('Acme Corp updated research report.')
+        expect(ws.workspaces['WS1']['company_research'].content).toBe(
+          'Acme Corp updated research report.'
+        )
       })
       it('returns research without saving when workspace params are omitted', async () => {
         useSystemPromptsStore()
@@ -1370,9 +1376,9 @@ describe('aiToolkit', () => {
             arguments: JSON.stringify({
               company_info: 'Acme Corp',
               current_research: existingResearch,
-              iteration_prompt: iterationPrompt,
-            }),
-          },
+              iteration_prompt: iterationPrompt
+            })
+          }
         })
 
         expect(result.success).toBe(true)
@@ -1472,6 +1478,399 @@ describe('aiToolkit', () => {
           }
         })
         expect(result.error).toContain('not found')
+      })
+    })
+
+    // ── SYSTEM PROMPTS: list_system_prompts handler ───────
+    describe('list_system_prompts', () => {
+      it('returns predefined categories', async () => {
+        useSystemPromptsStore()
+        const result = await executeToolCall({
+          function: { name: 'list_system_prompts', arguments: '' }
+        })
+        expect(result.categories).toBeDefined()
+        expect(Array.isArray(result.categories)).toBe(true)
+        // Should include the 5 predefined categories
+        const keys = result.categories.map((c) => c.key)
+        expect(keys).toContain('jobAnalysis')
+        expect(keys).toContain('matchReport')
+        expect(keys).toContain('companyResearch')
+        expect(keys).toContain('cvGeneration')
+        expect(keys).toContain('coverLetter')
+      })
+
+      it('each category includes key, name, isDefault, and activePromptName', async () => {
+        useSystemPromptsStore()
+        const result = await executeToolCall({
+          function: { name: 'list_system_prompts', arguments: '' }
+        })
+        for (const cat of result.categories) {
+          expect(cat).toHaveProperty('key')
+          expect(cat).toHaveProperty('name')
+          expect(cat).toHaveProperty('isDefault')
+          expect(cat).toHaveProperty('activePromptName')
+        }
+      })
+
+      it('includes custom categories when added', async () => {
+        const store = useSystemPromptsStore()
+        store.addCategory('my-custom', 'My Custom', 'Custom prompt content.')
+        const result = await executeToolCall({
+          function: { name: 'list_system_prompts', arguments: '' }
+        })
+        const keys = result.categories.map((c) => c.key)
+        expect(keys).toContain('my-custom')
+      })
+    })
+
+    // ── SYSTEM PROMPTS: get_system_prompt handler ─────────
+    describe('get_system_prompt', () => {
+      it('returns error when key is missing', async () => {
+        useSystemPromptsStore()
+        const result = await executeToolCall({
+          function: { name: 'get_system_prompt', arguments: '{}' }
+        })
+        expect(result.error).toContain('key is required')
+      })
+
+      it('returns error when category does not exist', async () => {
+        useSystemPromptsStore()
+        const result = await executeToolCall({
+          function: { name: 'get_system_prompt', arguments: '{"key":"nonexistent"}' }
+        })
+        expect(result.error).toContain('not found')
+        expect(result.error).toContain('list_system_prompts')
+      })
+
+      it('returns active prompt content for a valid key', async () => {
+        useSystemPromptsStore()
+        // Predefined categories have a default prompt with content
+        const result = await executeToolCall({
+          function: { name: 'get_system_prompt', arguments: '{"key":"jobAnalysis"}' }
+        })
+        // Should return key, name, isDefault, and content
+        expect(result.key).toBe('jobAnalysis')
+        expect(result.name).toBeDefined()
+        expect(typeof result.content).toBe('string')
+      })
+    })
+
+    // ── SUB_AGENT handler ─────────────────────────────────
+    describe('sub_agent', () => {
+      beforeEach(() => {
+        const settings = useSettingsStore()
+        settings.openRouterKey = 'test-api-key'
+        settings.openRouterModel = 'default-model'
+        useSystemPromptsStore()
+      })
+
+      it('returns error when prompt is missing', async () => {
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({ system_prompt: 'You are helpful' })
+          }
+        })
+        expect(result.error).toContain('prompt is required')
+      })
+
+      it('returns error when system_prompt is missing', async () => {
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({ prompt: 'Do something' })
+          }
+        })
+        expect(result.error).toContain('system_prompt is required')
+      })
+
+      it('returns error when API key is not configured', async () => {
+        const settings = useSettingsStore()
+        settings.openRouterKey = ''
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({ prompt: 'Do something', system_prompt: 'Be helpful' })
+          }
+        })
+        expect(result.error).toContain('API key')
+      })
+
+      it('returns error when workspace_name missing but context_keys provided', async () => {
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Analyze this',
+              system_prompt: 'Be helpful',
+              context_keys: ['job_posting']
+            })
+          }
+        })
+        expect(result.error).toContain('workspace_name is required')
+      })
+
+      it('returns error when workspace_name missing but output_key provided', async () => {
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Generate report',
+              system_prompt: 'Be helpful',
+              output_key: 'report'
+            })
+          }
+        })
+        expect(result.error).toContain('workspace_name is required')
+      })
+
+      it('runs a basic prompt-only sub-agent call and returns response', async () => {
+        streamAndCollect.mockResolvedValueOnce('Sub-agent response text')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Summarize best practices',
+              system_prompt: 'You are a helpful assistant'
+            })
+          }
+        })
+
+        expect(result.success).toBe(true)
+        expect(result.response).toBe('Sub-agent response text')
+        // Verify streamAndCollect was called with correct args
+        expect(streamAndCollect).toHaveBeenCalledWith(
+          'test-api-key',
+          'default-model',
+          expect.arrayContaining([
+            expect.objectContaining({
+              role: 'system',
+              content: expect.stringContaining('You are a helpful assistant')
+            }),
+            expect.objectContaining({ role: 'user', content: 'Summarize best practices' })
+          ]),
+          null
+        )
+      })
+
+      it('resolves system_prompt from category key', async () => {
+        // The default prompt for jobAnalysis exists already
+        useSystemPromptsStore()
+        // The default prompt exists already
+        streamAndCollect.mockResolvedValueOnce('Analysis result')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Analyze this job',
+              system_prompt: 'jobAnalysis'
+            })
+          }
+        })
+
+        expect(result.success).toBe(true)
+        // The system message should contain the prompt content from the store, not the literal 'jobAnalysis' key
+        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
+        const systemMsg = callArgs[2].find((m) => m.role === 'system')
+        expect(systemMsg.content).not.toBe('jobAnalysis')
+      })
+
+      it('uses literal text when system_prompt is not a known category key', async () => {
+        streamAndCollect.mockResolvedValueOnce('Result')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Do it',
+              system_prompt: 'You are a custom expert in XYZ'
+            })
+          }
+        })
+
+        expect(result.success).toBe(true)
+        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
+        const systemMsg = callArgs[2].find((m) => m.role === 'system')
+        expect(systemMsg.content).toContain('You are a custom expert in XYZ')
+      })
+
+      it('uses override model when provided', async () => {
+        streamAndCollect.mockResolvedValueOnce('Result')
+
+        await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Do it',
+              system_prompt: 'Be helpful',
+              model: 'custom/model:online'
+            })
+          }
+        })
+
+        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
+        expect(callArgs[1]).toBe('custom/model:online')
+      })
+
+      it('includes context from context_keys', async () => {
+        seedWorkspace('WS1', {
+          extra: {
+            job_posting: {
+              content: 'Senior developer at Acme Corp',
+              createdAt: Date.now(),
+              lastModified: Date.now()
+            }
+          }
+        })
+        streamAndCollect.mockResolvedValueOnce('Contextual result')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Summarize',
+              system_prompt: 'Be helpful',
+              workspace_name: 'WS1',
+              context_keys: ['job_posting']
+            })
+          }
+        })
+
+        expect(result.success).toBe(true)
+        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
+        const systemMsg = callArgs[2].find((m) => m.role === 'system')
+        expect(systemMsg.content).toContain('job_posting')
+        expect(systemMsg.content).toContain('Senior developer at Acme Corp')
+      })
+
+      it('includes user profile when include_user_profile is true', async () => {
+        const userStore = useUserProfileStore()
+        userStore.professionalExperience = '10 years in software engineering'
+
+        streamAndCollect.mockResolvedValueOnce('Profile-aware result')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Create a summary',
+              system_prompt: 'Be helpful',
+              include_user_profile: true
+            })
+          }
+        })
+
+        expect(result.success).toBe(true)
+        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
+        const systemMsg = callArgs[2].find((m) => m.role === 'system')
+        expect(systemMsg.content).toContain('User Profile')
+        expect(systemMsg.content).toContain('10 years in software engineering')
+      })
+
+      it('stores output in workspace context when output_key is provided', async () => {
+        seedWorkspace('WS1')
+        streamAndCollect.mockResolvedValueOnce('Generated analysis')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Analyze posting',
+              system_prompt: 'Be helpful',
+              workspace_name: 'WS1',
+              output_key: 'my_analysis'
+            })
+          }
+        })
+
+        expect(result.success).toBe(true)
+        expect(result.output_key).toBe('my_analysis')
+        // Verify context was stored
+        const ws = useWorkspaceStore()
+        expect(ws.workspaces['WS1'].my_analysis).toBeDefined()
+      })
+
+      it('returns error when streamAndCollect throws', async () => {
+        streamAndCollect.mockRejectedValueOnce(new Error('API timeout'))
+
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Do it',
+              system_prompt: 'Be helpful'
+            })
+          }
+        })
+
+        expect(result.error).toContain('Sub-agent failed')
+        expect(result.error).toContain('API timeout')
+      })
+
+      it('returns error when sub-agent produces empty output', async () => {
+        streamAndCollect.mockResolvedValueOnce('   ')
+
+        const result = await executeToolCall({
+          function: {
+            name: 'sub_agent',
+            arguments: JSON.stringify({
+              prompt: 'Do it',
+              system_prompt: 'Be helpful'
+            })
+          }
+        })
+
+        expect(result.error).toContain('no output')
+      })
+
+      it('forwards onProgress callback to streamAndCollect', async () => {
+        streamAndCollect.mockResolvedValueOnce('Streamed result')
+        const onProgress = vi.fn()
+
+        const result = await executeToolCall(
+          {
+            function: {
+              name: 'sub_agent',
+              arguments: JSON.stringify({
+                prompt: 'Do it',
+                system_prompt: 'Be helpful'
+              })
+            }
+          },
+          onProgress
+        )
+
+        expect(result.success).toBe(true)
+        // onProgress should have been passed as the 4th arg to streamAndCollect
+        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
+        expect(callArgs[3]).toBe(onProgress)
+      })
+    })
+
+    // ── executeToolCall onProgress forwarding ─────────────
+    describe('executeToolCall with onProgress', () => {
+      it('passes onProgress to handler as second argument', async () => {
+        const mockHandler = vi.fn().mockResolvedValue({ success: true })
+        registerToolHandler('_test_progress_tool', mockHandler)
+
+        const onProgress = vi.fn()
+        await executeToolCall(
+          { function: { name: '_test_progress_tool', arguments: '{"foo":"bar"}' } },
+          onProgress
+        )
+
+        expect(mockHandler).toHaveBeenCalledWith({ foo: 'bar' }, onProgress)
+      })
+
+      it('passes null when onProgress is not provided', async () => {
+        const mockHandler = vi.fn().mockResolvedValue({ success: true })
+        registerToolHandler('_test_no_progress', mockHandler)
+
+        await executeToolCall({ function: { name: '_test_no_progress', arguments: '{}' } })
+
+        expect(mockHandler).toHaveBeenCalledWith({}, undefined)
       })
     })
   })

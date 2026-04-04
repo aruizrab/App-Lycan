@@ -22,6 +22,8 @@ const {
     taskModels,
     customModels,
     matchReportThreshold,
+    contextThreshold,
+    summaryModel,
     availableModels,
     isLoadingModels,
     modelsFetchError
@@ -46,7 +48,7 @@ const COMMAND_LABELS = {
         name: 'Job Analysis',
         description: 'Analyze job postings from URL or text',
         icon: 'briefcase',
-        requiresWebSearch: true
+        requiresWebSearch: false
     },
     [AI_COMMAND_TYPES.MATCH_REPORT]: {
         name: 'Match Report',
@@ -246,6 +248,53 @@ const toggleWebSearchCompatibility = (modelId) => {
             <div class="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>More matches</span>
                 <span>Higher quality</span>
+            </div>
+        </div>
+
+        <!-- Context Management -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4">
+            <h3 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                Context Management
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                When a conversation approaches the model's context limit, older messages are automatically summarized to free up space.
+            </p>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Summarization Threshold
+                    </label>
+                    <div class="flex items-center gap-4">
+                        <input
+                            v-model.number="contextThreshold"
+                            type="range"
+                            min="50"
+                            max="95"
+                            step="5"
+                            class="flex-1"
+                        />
+                        <span class="text-lg font-bold text-blue-600 dark:text-blue-400 w-16 text-center">
+                            {{ contextThreshold }}%
+                        </span>
+                    </div>
+                    <div class="mt-1 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span>Summarize early</span>
+                        <span>Use more context</span>
+                    </div>
+                </div>
+
+                <div>
+                    <ModelDropdown
+                        v-model="summaryModel"
+                        :models="allModels"
+                        label="Summary Model"
+                        placeholder="Model used for summarization..."
+                    />
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        A fast, cheap model is recommended for summarizing conversations.
+                    </p>
+                </div>
             </div>
         </div>
 
