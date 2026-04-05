@@ -1,3 +1,11 @@
+## [1.2.1](https://github.com/aruizrab/App-Lycan/compare/v1.2.0...v1.2.1) (2026-04-05)
+
+### Bug Fixes
+
+- **build:** apply /App-Lycan/ base only in production to avoid breaking dev/e2e ([30dd3e4](https://github.com/aruizrab/App-Lycan/commit/30dd3e4fa598e8c9b39ee29c0cee365188085e3e))
+- **build:** set vite base path to /App-Lycan/ for GitHub Pages ([73d06c6](https://github.com/aruizrab/App-Lycan/commit/73d06c611a7556ca91f1eb8aced2f4bf6fcfc3e0))
+- **router:** use import.meta.env.BASE_URL for GitHub Pages compatibility ([13308fa](https://github.com/aruizrab/App-Lycan/commit/13308fa8f48f4de277ad2bdbbdd23f87860be48f))
+
 # [1.2.0](https://github.com/aruizrab/App-Lycan/compare/v1.1.0...v1.2.0) (2026-04-04)
 
 ### Bug Fixes
