@@ -1,13 +1,13 @@
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
+  <div class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-4 sm:p-8">
     <div class="max-w-6xl mx-auto">
       <!-- Header -->
-      <header class="flex justify-between items-center mb-8">
+      <header class="flex flex-wrap justify-between items-center mb-6 sm:mb-8 gap-y-3">
         <div class="flex items-center gap-4">
-          <h1 class="text-3xl font-bold">My Workspaces</h1>
+          <h1 class="text-2xl sm:text-3xl font-bold">My Workspaces</h1>
         </div>
-        
-        <div class="flex gap-2">
+
+        <div class="flex flex-wrap gap-2">
           <!-- User Profile -->
           <button
             @click="openUserProfileModal"
@@ -16,13 +16,10 @@
           >
             <UserIcon class="w-5 h-5" />
           </button>
-          
+
           <!-- AI Assistant button -->
-          <AiAssistantButton 
-            :active="showAiPanel"
-            @click="showAiPanel = !showAiPanel"
-          />
-          
+          <AiAssistantButton :active="showAiPanel" @click="showAiPanel = !showAiPanel" />
+
           <!-- Theme toggle -->
           <button
             @click="toggleTheme"
@@ -31,45 +28,45 @@
             <SunIcon v-if="isDark" class="w-5 h-5" />
             <MoonIcon v-else class="w-5 h-5" />
           </button>
-          
+
           <!-- View mode toggle -->
           <div class="flex gap-1 bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
-            <button 
-              @click="viewMode = 'grid'" 
+            <button
+              @click="viewMode = 'grid'"
               :class="viewModeButtonClass('grid')"
               class="px-3 py-2 rounded transition-colors"
             >
               <LayoutGridIcon class="w-4 h-4" />
             </button>
-            <button 
-              @click="viewMode = 'list'" 
+            <button
+              @click="viewMode = 'list'"
               :class="viewModeButtonClass('list')"
               class="px-3 py-2 rounded transition-colors"
             >
               <ListIcon class="w-4 h-4" />
             </button>
           </div>
-          
+
           <!-- Import button -->
-          <button 
-            @click="openImportModal" 
-            class="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+          <button
+            @click="openImportModal"
+            class="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
           >
             <UploadIcon class="w-4 h-4" />
-            Import
+            <span class="hidden sm:inline">Import</span>
           </button>
-          
+
           <!-- Create button -->
-          <button 
-            @click="openCreateModal" 
-            class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          <button
+            @click="openCreateModal"
+            class="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
             <PlusIcon class="w-4 h-4" />
-            New Workspace
+            <span class="hidden sm:inline">New Workspace</span>
           </button>
         </div>
       </header>
-      
+
       <!-- Grid/List View -->
       <DocumentGrid
         v-if="viewMode === 'grid'"
@@ -79,14 +76,14 @@
       >
         <template #action-menu="{ item }">
           <div class="absolute top-4 right-4" @click.stop>
-            <ActionMenu 
+            <ActionMenu
               :actions="workspaceActions"
               @action="(action) => handleAction(item.name, action)"
             />
           </div>
         </template>
       </DocumentGrid>
-      
+
       <DocumentList
         v-else
         :items="workspaceItems"
@@ -94,13 +91,13 @@
         @click:item="openWorkspace"
       >
         <template #action-menu="{ item }">
-          <ActionMenu 
+          <ActionMenu
             :actions="workspaceActions"
             @action="(action) => handleAction(item.name, action)"
           />
         </template>
       </DocumentList>
-      
+
       <!-- Create/Import Modal -->
       <CreateImportModal
         :is-open="isModalOpen"
@@ -113,23 +110,14 @@
       />
 
       <!-- Settings Modal -->
-      <SettingsModal
-        :is-open="isSettingsModalOpen"
-        @close="closeSettingsModal"
-      />
+      <SettingsModal :is-open="isSettingsModalOpen" @close="closeSettingsModal" />
 
       <!-- User Profile Modal -->
-      <UserProfileModal
-        :is-open="isUserProfileModalOpen"
-        @close="closeUserProfileModal"
-      />
+      <UserProfileModal :is-open="isUserProfileModalOpen" @close="closeUserProfileModal" />
     </div>
 
     <!-- Floating AI Chat Panel -->
-    <FloatingAiChat
-      v-if="showAiPanel"
-      @close="showAiPanel = false"
-    />
+    <FloatingAiChat v-if="showAiPanel" @close="showAiPanel = false" />
   </div>
 </template>
 
@@ -147,11 +135,11 @@ import SettingsModal from '../components/SettingsModal.vue'
 import UserProfileModal from '../components/UserProfileModal.vue'
 import FloatingAiChat from '../components/FloatingAiChat.vue'
 import AiAssistantButton from '../components/AiAssistantButton.vue'
-import { 
-  LayoutGrid as LayoutGridIcon, 
-  List as ListIcon, 
-  Upload as UploadIcon, 
-  Plus as PlusIcon, 
+import {
+  LayoutGrid as LayoutGridIcon,
+  List as ListIcon,
+  Upload as UploadIcon,
+  Plus as PlusIcon,
   Briefcase as BriefcaseIcon,
   Edit,
   Copy,
@@ -166,7 +154,8 @@ const router = useRouter()
 const route = useRoute()
 const workspaceStore = useWorkspaceStore()
 const { isSettingsModalOpen, closeSettingsModal } = useSettingsModal()
-const { isUserProfileModalOpen, openUserProfileModal, closeUserProfileModal } = useUserProfileModal()
+const { isUserProfileModalOpen, openUserProfileModal, closeUserProfileModal } =
+  useUserProfileModal()
 
 const viewMode = ref('grid')
 const showAiPanel = ref(false)
@@ -203,7 +192,7 @@ const toggleTheme = () => {
 
 // Computed
 const workspaceItems = computed(() => {
-  return workspaceStore.getWorkspaceList().map(ws => ({
+  return workspaceStore.getWorkspaceList().map((ws) => ({
     name: ws.name,
     lastModified: ws.lastModified,
     icon: BriefcaseIcon,
@@ -212,7 +201,7 @@ const workspaceItems = computed(() => {
 })
 
 const existingWorkspaceNames = computed(() => {
-  return workspaceStore.getWorkspaceList().map(ws => ws.name)
+  return workspaceStore.getWorkspaceList().map((ws) => ws.name)
 })
 
 const modalTitle = computed(() => {
@@ -284,10 +273,10 @@ const handleAction = (workspaceName, action) => {
 const renameWorkspace = (oldName) => {
   const newName = prompt('Enter new workspace name:', oldName)
   if (!newName || newName === oldName) return
-  
+
   try {
     const renamedName = workspaceStore.renameWorkspace(oldName, newName)
-    
+
     // If we're currently in this workspace, update the URL
     if (workspaceStore.currentWorkspace === renamedName) {
       router.replace(`/workspace/${encodeURIComponent(renamedName)}`)
@@ -308,7 +297,7 @@ const duplicateWorkspace = (name) => {
 const exportWorkspace = (name) => {
   const exported = workspaceStore.exportWorkspace(name)
   if (!exported) return
-  
+
   const dataStr = JSON.stringify(exported, null, 2)
   const blob = new Blob([dataStr], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -326,11 +315,12 @@ const deleteWorkspace = (name) => {
   const cvCount = Object.keys(ws.cvs).length
   const clCount = Object.keys(ws.coverLetters).length
   const totalDocs = cvCount + clCount
-  
-  const message = totalDocs > 0
-    ? `Delete workspace "${name}" and all ${totalDocs} document${totalDocs !== 1 ? 's' : ''} inside? This cannot be undone.`
-    : `Delete workspace "${name}"?`
-  
+
+  const message =
+    totalDocs > 0
+      ? `Delete workspace "${name}" and all ${totalDocs} document${totalDocs !== 1 ? 's' : ''} inside? This cannot be undone.`
+      : `Delete workspace "${name}"?`
+
   if (confirm(message)) {
     workspaceStore.deleteWorkspace(name)
   }
