@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import AiStreamingChat from './AiStreamingChat.vue'
 
 defineProps({
@@ -19,6 +19,16 @@ defineProps({
 
 const emit = defineEmits(['close'])
 
+// Track viewport width to conditionally apply desktop sizing
+const windowWidth = ref(window.innerWidth)
+const smAndUp = computed(() => windowWidth.value >= 640)
+
+const onResize = () => {
+  windowWidth.value = window.innerWidth
+}
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
+
 // Resizing state
 const chatWidth = ref(400)
 const chatHeight = ref(600)
@@ -29,7 +39,7 @@ const startResize = (e, handle) => {
   e.preventDefault()
   isResizing.value = true
   resizeHandle.value = handle
-  
+
   document.addEventListener('mousemove', handleResize)
   document.addEventListener('mouseup', stopResize)
   document.body.style.cursor = handle === 'width' ? 'ew-resize' : 'ns-resize'
@@ -68,16 +78,19 @@ const handleClose = () => {
 
 <template>
   <div
-    class="fixed bottom-4 right-4 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden z-50 resize"
-    :style="{ width: chatWidth + 'px', height: chatHeight + 'px' }"
+    class="fixed z-50 flex flex-col overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 inset-0 rounded-none sm:inset-auto sm:bottom-4 sm:right-4 sm:rounded-xl sm:shadow-2xl"
+    :style="{
+      width: smAndUp ? chatWidth + 'px' : undefined,
+      height: smAndUp ? chatHeight + 'px' : undefined
+    }"
   >
-    <!-- Resize handles -->
+    <!-- Resize handles (desktop only) -->
     <div
-      class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-purple-500/30 transition-colors"
+      class="hidden sm:block absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-purple-500/30 transition-colors"
       @mousedown="(e) => startResize(e, 'width')"
     ></div>
     <div
-      class="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-purple-500/30 transition-colors"
+      class="hidden sm:block absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-purple-500/30 transition-colors"
       @mousedown="(e) => startResize(e, 'height')"
     ></div>
 

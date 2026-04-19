@@ -9,7 +9,9 @@
           class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
         >
           <!-- Header -->
-          <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div
+            class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700"
+          >
             <div class="flex items-center gap-2">
               <SettingsIcon class="w-6 h-6 text-gray-900 dark:text-white" />
               <h2 class="text-xl font-semibold text-gray-900 dark:text-white">AI Settings</h2>
@@ -24,25 +26,27 @@
           </div>
 
           <!-- Tab Navigation -->
-          <div class="flex gap-2 px-6 pt-4 border-b border-gray-200 dark:border-gray-700">
+          <div
+            class="flex gap-2 px-4 sm:px-6 pt-4 border-b border-gray-200 dark:border-gray-700 overflow-x-auto"
+          >
             <button
               v-for="tab in tabs"
               :key="tab.id"
               @click="activeTab = tab.id"
               :class="[
-                'px-4 py-2 font-medium transition-colors border-b-2 -mb-px',
+                'px-3 sm:px-4 py-2 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap',
                 activeTab === tab.id
                   ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                   : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               ]"
             >
-              <component :is="tab.icon" class="w-4 h-4 inline mr-2" />
+              <component :is="tab.icon" class="w-4 h-4 inline mr-1 sm:mr-2" />
               {{ tab.label }}
             </button>
           </div>
 
           <!-- Content -->
-          <div class="flex-1 overflow-y-auto p-6">
+          <div class="flex-1 overflow-y-auto p-4 sm:p-6">
             <!-- Model Settings Tab -->
             <div v-if="activeTab === 'models'">
               <ModelSettings />
@@ -56,13 +60,19 @@
             <!-- General Settings Tab -->
             <div v-if="activeTab === 'general'" class="space-y-6">
               <div>
-                <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">Data Management</h3>
-                
+                <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">
+                  Data Management
+                </h3>
+
                 <div class="space-y-4">
-                  <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <div
+                    class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+                  >
                     <div>
                       <p class="font-medium text-gray-900 dark:text-white">Export All Settings</p>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">Download all AI settings as JSON</p>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                        Download all AI settings as JSON
+                      </p>
                     </div>
                     <button
                       @click="exportSettings"
@@ -73,22 +83,32 @@
                     </button>
                   </div>
 
-                  <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <div
+                    class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+                  >
                     <div>
                       <p class="font-medium text-gray-900 dark:text-white">Import Settings</p>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">Restore settings from a JSON file</p>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                        Restore settings from a JSON file
+                      </p>
                     </div>
-                    <label class="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors cursor-pointer">
+                    <label
+                      class="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors cursor-pointer"
+                    >
                       <UploadIcon class="w-4 h-4" />
                       Import
                       <input type="file" accept=".json" @change="importSettings" class="hidden" />
                     </label>
                   </div>
 
-                  <div class="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                  <div
+                    class="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800"
+                  >
                     <div>
                       <p class="font-medium text-red-700 dark:text-red-400">Reset All Settings</p>
-                      <p class="text-sm text-red-600 dark:text-red-400">This will reset all AI settings to defaults</p>
+                      <p class="text-sm text-red-600 dark:text-red-400">
+                        This will reset all AI settings to defaults
+                      </p>
                     </div>
                     <button
                       @click="confirmReset"
@@ -108,14 +128,19 @@
                 <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                   <p><strong>App-Lycan UI</strong> - CV & Cover Letter Builder</p>
                   <p>Version: 1.0.0</p>
-                  <p class="pt-2">All data is stored locally in your browser. No data is sent to external servers except when using AI features with your OpenRouter API key.</p>
+                  <p class="pt-2">
+                    All data is stored locally in your browser. No data is sent to external servers
+                    except when using AI features with your OpenRouter API key.
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Footer -->
-          <div class="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+          <div
+            class="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700"
+          >
             <button
               @click="close"
               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -220,7 +245,9 @@ const importSettings = async (event) => {
 }
 
 const confirmReset = () => {
-  if (confirm('Are you sure you want to reset all AI settings to defaults? This cannot be undone.')) {
+  if (
+    confirm('Are you sure you want to reset all AI settings to defaults? This cannot be undone.')
+  ) {
     settingsStore.resetSettings()
     systemPromptsStore.resetAllToDefaults()
     alert('All settings have been reset to defaults.')

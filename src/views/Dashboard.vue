@@ -16,15 +16,15 @@ import SettingsModal from '../components/SettingsModal.vue'
 import UserProfileModal from '../components/UserProfileModal.vue'
 import FloatingAiChat from '../components/FloatingAiChat.vue'
 import AiAssistantButton from '../components/AiAssistantButton.vue'
-import { 
-  Plus, 
-  Upload, 
-  FileText, 
+import {
+  Plus,
+  Upload,
+  FileText,
   Mail,
-  Copy, 
-  Trash2, 
-  Download, 
-  Grid, 
+  Copy,
+  Trash2,
+  Download,
+  Grid,
   List,
   Edit,
   Moon,
@@ -42,7 +42,8 @@ const workspaceStore = useWorkspaceStore()
 const router = useRouter()
 const route = useRoute()
 const { isSettingsModalOpen, closeSettingsModal } = useSettingsModal()
-const { isUserProfileModalOpen, openUserProfileModal, closeUserProfileModal } = useUserProfileModal()
+const { isUserProfileModalOpen, openUserProfileModal, closeUserProfileModal } =
+  useUserProfileModal()
 
 const viewMode = ref('grid') // 'grid' or 'list'
 const activeTab = ref('cv') // 'cv' or 'cover-letter'
@@ -113,7 +114,7 @@ watch(
 // Computed
 const cvs = computed(() => {
   const cvsObj = store.cvs
-  return Object.keys(cvsObj).map(name => ({
+  return Object.keys(cvsObj).map((name) => ({
     name,
     id: cvsObj[name].id,
     lastModified: cvsObj[name].lastModified,
@@ -124,7 +125,7 @@ const cvs = computed(() => {
 
 const coverLetters = computed(() => {
   const clsObj = clStore.coverLetters
-  return Object.keys(clsObj).map(name => ({
+  return Object.keys(clsObj).map((name) => ({
     name,
     id: clsObj[name].id,
     lastModified: clsObj[name].lastModified,
@@ -133,10 +134,10 @@ const coverLetters = computed(() => {
   }))
 })
 
-const items = computed(() => activeTab.value === 'cv' ? cvs.value : coverLetters.value)
+const items = computed(() => (activeTab.value === 'cv' ? cvs.value : coverLetters.value))
 
 const existingNames = computed(() => {
-  return items.value.map(item => item.name)
+  return items.value.map((item) => item.name)
 })
 
 const modalTitle = computed(() => {
@@ -289,9 +290,9 @@ const exportItem = (name) => {
   } else {
     exported = clStore.exportCoverLetter(name)
   }
-  
+
   if (!exported) return
-  
+
   const dataStr = JSON.stringify(exported, null, 2)
   const blob = new Blob([dataStr], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -333,11 +334,12 @@ const handleDrop = async (event) => {
     try {
       const content = e.target.result
       const parsed = JSON.parse(content)
-      
+
       // Determine if it's a CV or Cover Letter
       const isCv = parsed.personalInfo && parsed.sections
-      const isCoverLetter = parsed.applicantAddress !== undefined || parsed.companyAddress !== undefined
-      
+      const isCoverLetter =
+        parsed.applicantAddress !== undefined || parsed.companyAddress !== undefined
+
       // Extract suggested name
       let suggestedNameValue = ''
       if (parsed.name) {
@@ -347,7 +349,7 @@ const handleDrop = async (event) => {
       } else {
         suggestedNameValue = file.name.replace('.json', '')
       }
-      
+
       // Set active tab based on type
       if (isCv) {
         activeTab.value = 'cv'
@@ -357,12 +359,12 @@ const handleDrop = async (event) => {
         // Default to current active tab if can't determine
         console.warn('Could not determine document type, using active tab')
       }
-      
+
       // Open import modal with pre-filled data
       suggestedName.value = suggestedNameValue
       modalMode.value = 'import'
       showModal.value = true
-      
+
       // Store the content for later import
       setTimeout(() => {
         const modal = document.querySelector('input[type="file"]')
@@ -373,7 +375,6 @@ const handleDrop = async (event) => {
           modal.dispatchEvent(new Event('change', { bubbles: true }))
         }
       }, 100)
-      
     } catch (error) {
       alert('Invalid JSON file: ' + error.message)
     }
@@ -410,7 +411,7 @@ const handleContextRegenerate = (type) => {
 const handleViewCustomContext = (contextKey) => {
   const ws = workspaceStore.workspaces[workspaceStore.currentWorkspace]
   if (!ws || !ws[contextKey]) return
-  
+
   selectedContextKey.value = contextKey
   selectedContextContent.value = ws[contextKey].content || ''
   contextModalMode.value = 'view'
@@ -420,7 +421,7 @@ const handleViewCustomContext = (contextKey) => {
 const handleEditCustomContext = (contextKey) => {
   const ws = workspaceStore.workspaces[workspaceStore.currentWorkspace]
   if (!ws || !ws[contextKey]) return
-  
+
   selectedContextKey.value = contextKey
   selectedContextContent.value = ws[contextKey].content || ''
   contextModalMode.value = 'edit'
@@ -430,7 +431,7 @@ const handleEditCustomContext = (contextKey) => {
 const handleDeleteCustomContext = (contextKey) => {
   const ws = workspaceStore.workspaces[workspaceStore.currentWorkspace]
   if (!ws || !ws[contextKey]) return
-  
+
   // Delete the custom context entry
   ws[contextKey] = null
   ws.metadata.lastModified = Date.now()
@@ -447,7 +448,7 @@ const handleAddCustomContext = () => {
 const handleSaveCustomContext = ({ key, content }) => {
   const ws = workspaceStore.workspaces[workspaceStore.currentWorkspace]
   if (!ws) return
-  
+
   // Create or update the context entry
   const existing = ws[key]
   ws[key] = {
@@ -461,24 +462,26 @@ const handleSaveCustomContext = ({ key, content }) => {
 </script>
 
 <template>
-  <div 
-    class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8 transition-colors duration-300"
+  <div
+    class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-4 sm:p-8 transition-colors duration-300"
     @dragover="handleDragOver"
     @dragleave="handleDragLeave"
     @drop="handleDrop"
   >
     <!-- Drag overlay -->
-    <div 
+    <div
       v-if="isDragging"
       class="fixed inset-0 bg-blue-500 bg-opacity-20 border-4 border-dashed border-blue-500 dark:border-blue-400 flex items-center justify-center z-50 pointer-events-none"
     >
       <div class="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-2xl">
         <Upload class="w-16 h-16 text-blue-500 dark:text-blue-400 mx-auto mb-4" />
         <p class="text-xl font-semibold text-gray-900 dark:text-white">Drop JSON file to import</p>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">CV or Cover Letter will be auto-detected</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+          CV or Cover Letter will be auto-detected
+        </p>
       </div>
     </div>
-    
+
     <div class="max-w-6xl mx-auto">
       <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div class="flex items-center gap-4 min-w-0 flex-1">
@@ -488,7 +491,7 @@ const handleSaveCustomContext = ({ key, content }) => {
           >
             <ArrowLeft class="w-5 h-5" />
           </button>
-          
+
           <!-- Editable workspace name -->
           <div class="flex items-center gap-2 min-w-0 max-w-md">
             <input
@@ -496,33 +499,41 @@ const handleSaveCustomContext = ({ key, content }) => {
               ref="workspaceNameInput"
               v-model="editedWorkspaceName"
               type="text"
-              class="text-3xl font-bold bg-transparent border-b-2 border-blue-500 dark:border-blue-400 focus:outline-none px-1 min-w-0 flex-1"
+              class="text-2xl sm:text-3xl font-bold bg-transparent border-b-2 border-blue-500 dark:border-blue-400 focus:outline-none px-1 min-w-0 flex-1"
               @blur="saveWorkspaceName"
               @keyup.enter="saveWorkspaceName"
               @keyup.esc="cancelEditingWorkspaceName"
             />
-            <h1 
+            <h1
               v-else
               @click="startEditingWorkspaceName"
-              class="text-3xl font-bold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate"
+              class="text-2xl sm:text-3xl font-bold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate"
               :title="workspaceStore.currentWorkspace"
             >
               {{ workspaceStore.currentWorkspace }}
             </h1>
           </div>
-          
+
           <div class="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-1 flex-shrink-0">
-            <button 
+            <button
               @click="activeTab = 'cv'"
               class="px-4 py-1 rounded-md text-sm font-medium transition-colors"
-              :class="activeTab === 'cv' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'"
+              :class="
+                activeTab === 'cv'
+                  ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+              "
             >
               CVs
             </button>
-            <button 
+            <button
               @click="activeTab = 'cover-letter'"
               class="px-4 py-1 rounded-md text-sm font-medium transition-colors"
-              :class="activeTab === 'cover-letter' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'"
+              :class="
+                activeTab === 'cover-letter'
+                  ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+              "
             >
               Cover Letters
             </button>
@@ -531,54 +542,65 @@ const handleSaveCustomContext = ({ key, content }) => {
 
         <div class="flex gap-4">
           <!-- User Profile -->
-          <button 
-            @click="openUserProfileModal" 
+          <button
+            @click="openUserProfileModal"
             class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             title="User Profile"
           >
             <User :size="20" />
           </button>
-          
+
           <!-- AI Assistant Toggle -->
-          <AiAssistantButton 
-            :active="showAiPanel"
-            @click="showAiPanel = !showAiPanel"
-          />
-          
+          <AiAssistantButton :active="showAiPanel" @click="showAiPanel = !showAiPanel" />
+
           <!-- Theme Toggle -->
-          <button @click="toggleTheme" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <button
+            @click="toggleTheme"
+            class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
             <Moon v-if="isDark" :size="20" />
             <Sun v-else :size="20" />
           </button>
 
           <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-1 flex">
-            <button 
+            <button
               @click="viewMode = 'grid'"
               class="p-2 rounded transition-colors"
-              :class="viewMode === 'grid' ? 'bg-gray-100 dark:bg-gray-700 text-blue-600' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'"
+              :class="
+                viewMode === 'grid'
+                  ? 'bg-gray-100 dark:bg-gray-700 text-blue-600'
+                  : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+              "
             >
               <Grid :size="20" />
             </button>
-            <button 
+            <button
               @click="viewMode = 'list'"
               class="p-2 rounded transition-colors"
-              :class="viewMode === 'list' ? 'bg-gray-100 dark:bg-gray-700 text-blue-600' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'"
+              :class="
+                viewMode === 'list'
+                  ? 'bg-gray-100 dark:bg-gray-700 text-blue-600'
+                  : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+              "
             >
               <List :size="20" />
             </button>
           </div>
-          
-          <button 
-            @click="openImportModal" 
-            class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg shadow hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors"
+
+          <button
+            @click="openImportModal"
+            class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-3 sm:px-4 py-2 rounded-lg shadow hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors"
           >
-            <Upload :size="20" /> Import
+            <Upload :size="20" /> <span class="hidden sm:inline">Import</span>
           </button>
-          <button 
-            @click="openCreateModal" 
-            class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 flex items-center gap-2 transition-colors"
+          <button
+            @click="openCreateModal"
+            class="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg shadow hover:bg-blue-700 flex items-center gap-2 transition-colors"
           >
-            <Plus :size="20" /> New {{ activeTab === 'cv' ? 'CV' : 'Cover Letter' }}
+            <Plus :size="20" />
+            <span class="hidden sm:inline"
+              >New {{ activeTab === 'cv' ? 'CV' : 'Cover Letter' }}</span
+            >
           </button>
         </div>
       </header>
@@ -592,10 +614,16 @@ const handleSaveCustomContext = ({ key, content }) => {
           <component :is="showWorkspaceContext ? ChevronDown : ChevronRight" :size="16" />
           <Briefcase :size="16" />
           Job Application Context
-          <span v-if="workspaceStore.hasAiContext" class="ml-2 w-2 h-2 rounded-full bg-green-500"></span>
+          <span
+            v-if="workspaceStore.hasAiContext"
+            class="ml-2 w-2 h-2 rounded-full bg-green-500"
+          ></span>
         </button>
 
-        <div v-if="showWorkspaceContext" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+        <div
+          v-if="showWorkspaceContext"
+          class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700"
+        >
           <WorkspaceContextPanel
             @edit="handleContextEdit"
             @delete="handleContextDelete"
@@ -617,7 +645,7 @@ const handleSaveCustomContext = ({ key, content }) => {
       >
         <template #action-menu="{ item }">
           <div class="absolute top-4 right-4" @click.stop>
-            <ActionMenu 
+            <ActionMenu
               :actions="documentActions"
               @action="(action) => handleAction(item.name, action)"
             />
@@ -633,7 +661,7 @@ const handleSaveCustomContext = ({ key, content }) => {
         @click:item="editItem"
       >
         <template #action-menu="{ item }">
-          <ActionMenu 
+          <ActionMenu
             :actions="documentActions"
             @action="(action) => handleAction(item.name, action)"
           />
@@ -652,16 +680,10 @@ const handleSaveCustomContext = ({ key, content }) => {
       />
 
       <!-- Settings Modal -->
-      <SettingsModal
-        :is-open="isSettingsModalOpen"
-        @close="closeSettingsModal"
-      />
+      <SettingsModal :is-open="isSettingsModalOpen" @close="closeSettingsModal" />
 
       <!-- User Profile Modal -->
-      <UserProfileModal
-        :is-open="isUserProfileModalOpen"
-        @close="closeUserProfileModal"
-      />
+      <UserProfileModal :is-open="isUserProfileModalOpen" @close="closeUserProfileModal" />
 
       <!-- Workspace Context Modal -->
       <WorkspaceContextModal
@@ -676,9 +698,6 @@ const handleSaveCustomContext = ({ key, content }) => {
     </div>
 
     <!-- Floating AI Chat Panel -->
-    <FloatingAiChat
-      v-if="showAiPanel"
-      @close="showAiPanel = false"
-    />
+    <FloatingAiChat v-if="showAiPanel" @close="showAiPanel = false" />
   </div>
 </template>
