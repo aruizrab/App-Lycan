@@ -1,0 +1,221 @@
+/* ============================================================
+   App-Lycan — Glass design tokens
+   Ported from design handoff. Palette swaps via data-attributes.
+   ============================================================ */
+
+:root {
+  /* Type */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Radius scale */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-2xl: 36px;
+
+  /* Motion */
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 160ms;
+  --dur-med: 280ms;
+  --dur-slow: 520ms;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 8px 28px rgba(4, 6, 20, 0.38);
+  --shadow-lg: 0 24px 60px rgba(4, 6, 20, 0.5);
+  --shadow-glow: 0 0 80px -20px var(--accent-glow);
+}
+
+/* Radius scale tweak */
+[data-radius='sm'] {
+  --radius: 10px;
+  --radius-card: 14px;
+}
+[data-radius='md'] {
+  --radius: 14px;
+  --radius-card: 18px;
+}
+[data-radius='lg'] {
+  --radius: 18px;
+  --radius-card: 24px;
+}
+[data-radius='xl'] {
+  --radius: 24px;
+  --radius-card: 32px;
+}
+
+/* ----------------------------------------------------------
+   PALETTES
+   ---------------------------------------------------------- */
+
+/* Moonlit — deep indigo → violet, lunar */
+[data-palette='moonlit'][data-theme='dark'] {
+  --bg-0: #070816;
+  --bg-1: #0d0f24;
+  --bg-2: #131634;
+  --fg-0: #f4f1ff;
+  --fg-1: #d7d3ee;
+  --fg-2: #948fb3;
+  --fg-3: #62607e;
+  --accent: #a78bfa;
+  --accent-2: #7c3aed;
+  --accent-soft: rgba(167, 139, 250, 0.18);
+  --accent-glow: rgba(140, 92, 246, 0.55);
+  --ok: #5eead4;
+  --warn: #fcd34d;
+  --danger: #fb7185;
+  --ai: #c4b5fd;
+  --ats: #6ee7b7;
+  --orb-1: #6d28d9;
+  --orb-2: #c026d3;
+  --orb-3: #1e3a8a;
+  --orb-4: #f472b6;
+}
+
+[data-palette='moonlit'][data-theme='light'] {
+  --bg-0: #eef0ff;
+  --bg-1: #f5f3ff;
+  --bg-2: #ffffff;
+  --fg-0: #1a1433;
+  --fg-1: #3b3368;
+  --fg-2: #6b648f;
+  --fg-3: #9d97b8;
+  --accent: #7c3aed;
+  --accent-2: #5b21b6;
+  --accent-soft: rgba(124, 58, 237, 0.14);
+  --accent-glow: rgba(167, 139, 250, 0.45);
+  --ok: #14b8a6;
+  --warn: #d97706;
+  --danger: #e11d48;
+  --ai: #7c3aed;
+  --ats: #10b981;
+  --orb-1: #a78bfa;
+  --orb-2: #f0abfc;
+  --orb-3: #93c5fd;
+  --orb-4: #fbcfe8;
+}
+
+/* Aurora — teal → purple → pink */
+[data-palette='aurora'][data-theme='dark'] {
+  --bg-0: #040c14;
+  --bg-1: #071624;
+  --bg-2: #0a2030;
+  --fg-0: #eafaff;
+  --fg-1: #c4e5f0;
+  --fg-2: #7fa4b4;
+  --fg-3: #536a76;
+  --accent: #67e8f9;
+  --accent-2: #06b6d4;
+  --accent-soft: rgba(103, 232, 249, 0.16);
+  --accent-glow: rgba(45, 212, 191, 0.55);
+  --ok: #34d399;
+  --warn: #fcd34d;
+  --danger: #f472b6;
+  --ai: #f0abfc;
+  --ats: #4ade80;
+  --orb-1: #0d9488;
+  --orb-2: #a21caf;
+  --orb-3: #1d4ed8;
+  --orb-4: #db2777;
+}
+
+[data-palette='aurora'][data-theme='light'] {
+  --bg-0: #e8f8fc;
+  --bg-1: #f0fcff;
+  --bg-2: #ffffff;
+  --fg-0: #0a1e2a;
+  --fg-1: #1e3d4e;
+  --fg-2: #4a7080;
+  --fg-3: #7a9aaa;
+  --accent: #06b6d4;
+  --accent-2: #0891b2;
+  --accent-soft: rgba(6, 182, 212, 0.14);
+  --accent-glow: rgba(103, 232, 249, 0.45);
+  --ok: #14b8a6;
+  --warn: #d97706;
+  --danger: #e11d48;
+  --ai: #a855f7;
+  --ats: #10b981;
+  --orb-1: #67e8f9;
+  --orb-2: #f0abfc;
+  --orb-3: #93c5fd;
+  --orb-4: #fbcfe8;
+}
+
+/* Dusk — warm orange → magenta → violet */
+[data-palette='dusk'][data-theme='dark'] {
+  --bg-0: #130617;
+  --bg-1: #1f0a24;
+  --bg-2: #2a0f32;
+  --fg-0: #ffeef7;
+  --fg-1: #f5d5e8;
+  --fg-2: #b88ba8;
+  --fg-3: #785672;
+  --accent: #fb923c;
+  --accent-2: #ea580c;
+  --accent-soft: rgba(251, 146, 60, 0.18);
+  --accent-glow: rgba(251, 113, 133, 0.55);
+  --ok: #86efac;
+  --warn: #fbbf24;
+  --danger: #f43f5e;
+  --ai: #f0abfc;
+  --ats: #a7f3d0;
+  --orb-1: #c2410c;
+  --orb-2: #a21caf;
+  --orb-3: #7c3aed;
+  --orb-4: #e11d48;
+}
+
+[data-palette='dusk'][data-theme='light'] {
+  --bg-0: #fef2f0;
+  --bg-1: #fff5f3;
+  --bg-2: #ffffff;
+  --fg-0: #2a0f17;
+  --fg-1: #5c2840;
+  --fg-2: #8f5a78;
+  --fg-3: #b88ba8;
+  --accent: #ea580c;
+  --accent-2: #c2410c;
+  --accent-soft: rgba(234, 88, 12, 0.14);
+  --accent-glow: rgba(251, 146, 60, 0.45);
+  --ok: #14b8a6;
+  --warn: #d97706;
+  --danger: #e11d48;
+  --ai: #a855f7;
+  --ats: #10b981;
+  --orb-1: #fb923c;
+  --orb-2: #f0abfc;
+  --orb-3: #a78bfa;
+  --orb-4: #fb7185;
+}
+
+/* Default fallback */
+:root[data-theme='dark']:not([data-palette]),
+:root[data-palette='moonlit'] {
+  color-scheme: dark;
+}
+:root[data-theme='light'][data-palette='moonlit'] {
+  color-scheme: light;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Utility */
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: 'zero', 'cv01';
+  letter-spacing: 0;
+}
+.serif {
+  font-family: var(--font-serif);
+  letter-spacing: -0.02em;
+}
