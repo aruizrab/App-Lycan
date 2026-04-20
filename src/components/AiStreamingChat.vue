@@ -5,6 +5,7 @@ import {
   Send,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Sparkles,
   MessageSquare,
   Monitor,
@@ -14,7 +15,11 @@ import {
   Settings,
   Wrench,
   Brain,
-  BookOpen
+  BookOpen,
+  Pencil,
+  RotateCcw,
+  GitBranch,
+  AlertCircle
 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat'
@@ -88,6 +93,12 @@ const expandedToolCalls = ref(new Set()) // Track which tool calls have expanded
 const modelSearchQuery = ref('')
 const showModelDropdown = ref(false)
 
+// Edit / retry state
+const editingMessageId = ref(null)
+const editingContent = ref('')
+const hoveringMessageId = ref(null)
+const providerError = ref(null) // Provider-level error to show as banner
+
 // Initialize tool handlers once
 onMounted(() => {
   if (!toolsInitialized.value) {
@@ -111,6 +122,7 @@ const streamingToolCalls = computed(() => chatStore.streamingToolCalls)
 const streamingToolOutputs = computed(() => chatStore.streamingToolOutputs)
 const currentSession = computed(() => chatStore.currentSession)
 const sessions = computed(() => chatStore.sessions)
+const currentBranches = computed(() => chatStore.currentBranches)
 
 const availableCommands = computed(() => getAllCommands())
 
@@ -303,6 +315,27 @@ const handleKeydown = (e) => {
 }
 
 /**
+ * Classify an error as a provider-level error (auth, rate limit, network).
+ * These cannot be self-corrected by the model and should stop the conversation.
+ */
+const isProviderError = (error) => {
+  const msg = (error?.message || '').toLowerCase()
+  const status = error?.status || error?.statusCode || 0
+  return (
+    status === 401 ||
+    status === 403 ||
+    status === 429 ||
+    status >= 500 ||
+    msg.includes('api key') ||
+    msg.includes('unauthorized') ||
+    msg.includes('authentication') ||
+    msg.includes('rate limit') ||
+    msg.includes('quota') ||
+    msg.includes('invalid key')
+  )
+}
+
+/**
  * Build the system prompt for the current request.
  * - Always includes the general prompt (static instructions only).
  * - If a command is active, also appends the command-specific prompt.
@@ -317,39 +350,18 @@ const buildSystemPrompt = async (commandId = null) => {
   return loadGeneralPrompt()
 }
 
-const handleSend = async () => {
-  const text = userInput.value.trim()
-  if (!text || isBusy.value) return
-
-  // Parse for commands
-  const { commandId, content } = parseCommand(text)
-
-  // Ensure we have a session
-  chatStore.ensureSession({
-    context: {
-      type: props.contextType,
-      documentId: props.documentId
-    },
-    model: settingsStore.openRouterModel
-  })
-
-  // Determine user message text
-  const cmd = commandId ? AI_COMMANDS[commandId] : null
-  const displayText = cmd ? cmd.buildUserMessage(content) : text
-
-  // Add user message immediately
-  chatStore.addMessage({
-    role: 'user',
-    content: displayText,
-    metadata: { commandId }
-  })
-
-  userInput.value = ''
+/**
+ * Core AI execution. Expects the user message to already be in the store.
+ * Used by handleSend, handleEditSave, and handleRetry.
+ */
+const executeAiRequest = async (commandId = null) => {
+  providerError.value = null
 
   // ── Pre-send context check: summarize if nearing limit ──
   const threshold = settingsStore.contextThreshold
   const ctxLength = modelContextLength.value
-  const newMsgTokens = estimateTokens(displayText)
+  const lastMsg = messages.value[messages.value.length - 1]
+  const newMsgTokens = lastMsg ? estimateTokens(lastMsg.content || '') : 0
 
   if (
     ctxLength > 0 &&
@@ -371,7 +383,6 @@ const handleSend = async () => {
       })
       if (summary && removedCount > 0) {
         applyConversationSummary(chatStore.currentSession.messages, summary, removedCount)
-        // Reset token usage since the conversation changed shape
         chatStore.updateTokenUsage(null)
       }
     } catch (err) {
@@ -390,6 +401,7 @@ const handleSend = async () => {
       settingsStore.openRouterModel,
       Array.from(availableModelIds.value)
     )
+    const cmd = commandId ? AI_COMMANDS[commandId] : null
     const model =
       commandId && cmd?.commandType ? settingsStore.getModelForTask(cmd.commandType) : sessionModel
 
@@ -404,10 +416,9 @@ const handleSend = async () => {
     const systemPrompt = await buildSystemPrompt(commandId)
 
     // Pass ephemeral context that will be injected before last user message
-    // This gives maximum attention weight and stays fresh as user navigates
     const apiMessages = chatStore.getApiMessages(systemPrompt, appContextJson.value)
 
-    // Append :online to model name if it supports web search (OpenRouter native search)
+    // Append :online to model name if it supports web search
     let finalModel = model
     if (determineWebSearchCapability(model) && !model.endsWith(':online')) {
       finalModel = `${model}:online`
@@ -444,7 +455,6 @@ const handleSend = async () => {
         chatStore.updateToolOutput(toolCallId, chunk, accumulated)
       },
       onRoundComplete: (roundData) => {
-        // Save each assistant message separately after each round
         chatStore.finishStreaming({
           content: roundData.content,
           reasoning: roundData.reasoning,
@@ -455,7 +465,6 @@ const handleSend = async () => {
             hasWebSearch: determineWebSearchCapability(model)
           }
         })
-        // If not the last round, restart streaming for next round
         if (!roundData.isLastRound) {
           chatStore.startStreaming()
         }
@@ -464,7 +473,6 @@ const handleSend = async () => {
         try {
           const result = await executeToolCall(toolCall)
 
-          // Notify parent if data was modified
           if (
             result?.success &&
             (toolCall.function.name.includes('edit') ||
@@ -484,13 +492,135 @@ const handleSend = async () => {
         }
       }
     })
-
-    // Streaming already finished via onRoundComplete callback
-    // No need to call finishStreaming again
   } catch (error) {
     console.error('Chat error:', error)
-    chatStore.handleStreamingError(error)
+    chatStore.clearStreaming()
+    if (isProviderError(error)) {
+      providerError.value = error.message
+    } else {
+      chatStore.handleStreamingError(error)
+    }
   }
+}
+
+const handleSend = async () => {
+  const text = userInput.value.trim()
+  if (!text || isBusy.value) return
+
+  // Parse for commands
+  const { commandId, content } = parseCommand(text)
+
+  // Ensure we have a session
+  chatStore.ensureSession({
+    context: {
+      type: props.contextType,
+      documentId: props.documentId
+    },
+    model: settingsStore.openRouterModel
+  })
+
+  // Determine user message text
+  const cmd = commandId ? AI_COMMANDS[commandId] : null
+  const displayText = cmd ? cmd.buildUserMessage(content) : text
+
+  // Add user message immediately
+  chatStore.addMessage({
+    role: 'user',
+    content: displayText,
+    metadata: { commandId }
+  })
+
+  userInput.value = ''
+
+  await executeAiRequest(commandId)
+}
+
+/**
+ * Start editing a user message inline.
+ */
+const handleEditStart = (msg) => {
+  editingMessageId.value = msg.id
+  editingContent.value = msg.content
+  nextTick(() => {
+    const textarea = document.querySelector('.edit-message-textarea')
+    if (textarea) textarea.focus()
+  })
+}
+
+/**
+ * Cancel the current inline edit.
+ */
+const handleEditCancel = () => {
+  editingMessageId.value = null
+  editingContent.value = ''
+}
+
+/**
+ * Save the edited message, branch the current conversation, and re-send.
+ */
+const handleEditSave = async (msg) => {
+  const newContent = editingContent.value.trim()
+  if (!newContent || isBusy.value) return
+
+  const msgIndex = messages.value.findIndex((m) => m.id === msg.id)
+  if (msgIndex === -1) return
+
+  // Save current conversation as a branch before rewriting history
+  chatStore.saveBranch()
+
+  // Truncate from this message onward (replaces it with the edited version)
+  chatStore.truncateFromMessage(msg.id)
+
+  editingMessageId.value = null
+  editingContent.value = ''
+
+  // Add the edited message
+  chatStore.addMessage({
+    role: 'user',
+    content: newContent,
+    metadata: { commandId: msg.metadata?.commandId || null }
+  })
+
+  await executeAiRequest(msg.metadata?.commandId || null)
+}
+
+/**
+ * Retry an assistant response: saves a branch, removes the AI turn, and re-sends.
+ */
+const handleRetry = async (assistantMsg) => {
+  if (isBusy.value) return
+
+  const msgs = messages.value
+  const assistantIdx = msgs.findIndex((m) => m.id === assistantMsg.id)
+  if (assistantIdx === -1) return
+
+  // Find the preceding user message
+  let userMsgIdx = assistantIdx - 1
+  while (userMsgIdx >= 0 && msgs[userMsgIdx].role !== 'user') {
+    userMsgIdx--
+  }
+  if (userMsgIdx < 0) return
+
+  const userMsg = msgs[userMsgIdx]
+
+  // Save current conversation as a branch
+  chatStore.saveBranch()
+
+  // Remove all AI messages for this turn (everything after the user message)
+  const firstAfterUser = msgs[userMsgIdx + 1]
+  if (!firstAfterUser) return
+  chatStore.truncateFromMessage(firstAfterUser.id)
+
+  await executeAiRequest(userMsg.metadata?.commandId || null)
+}
+
+/**
+ * Switch to a previously saved branch.
+ */
+const handleSwitchBranch = (branchId) => {
+  if (isBusy.value) return
+  chatStore.switchBranch(branchId)
+  scrollToBottom()
 }
 
 const createNewSession = () => {
@@ -719,18 +849,62 @@ const toggleModelDropdown = () => {
       </div>
 
       <!-- Message list -->
-      <div v-for="(msg, idx) in messages" :key="msg.id || idx" :class="getMessageSpacing(idx)">
+      <div
+        v-for="(msg, idx) in messages"
+        :key="msg.id || idx"
+        :class="getMessageSpacing(idx)"
+        @mouseenter="hoveringMessageId = msg.id"
+        @mouseleave="hoveringMessageId = null"
+      >
         <!-- User message -->
-        <div
-          v-if="msg.role === 'user'"
-          class="p-3 rounded-lg max-w-[90%] bg-blue-100 dark:bg-blue-900/30 ml-auto"
-        >
-          <div
-            class="text-sm break-words prose prose-sm dark:prose-invert max-w-none"
-            v-html="renderMarkdown(msg.content)"
-          ></div>
-          <div v-if="msg.metadata?.commandId" class="mt-1 text-xs text-gray-400">
-            /{{ msg.metadata.commandId }}
+        <div v-if="msg.role === 'user'" class="flex flex-col items-end gap-1">
+          <!-- Inline edit mode -->
+          <div v-if="editingMessageId === msg.id" class="w-full max-w-[90%] ml-auto">
+            <textarea
+              v-model="editingContent"
+              class="edit-message-textarea w-full rounded-lg border border-blue-400 dark:border-blue-500 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none min-h-[60px] max-h-48"
+              style="field-sizing: content"
+              @keydown.enter.exact.prevent="handleEditSave(msg)"
+              @keydown.esc.prevent="handleEditCancel"
+            />
+            <div class="flex gap-2 mt-1 justify-end">
+              <button
+                @click="handleEditCancel"
+                class="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                @click="handleEditSave(msg)"
+                :disabled="!editingContent.trim()"
+                class="px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+
+          <!-- Normal display -->
+          <div v-else class="relative group w-full flex flex-col items-end">
+            <div class="p-3 rounded-lg max-w-[90%] bg-blue-100 dark:bg-blue-900/30">
+              <div
+                class="text-sm break-words prose prose-sm dark:prose-invert max-w-none"
+                v-html="renderMarkdown(msg.content)"
+              ></div>
+              <div v-if="msg.metadata?.commandId" class="mt-1 text-xs text-gray-400">
+                /{{ msg.metadata.commandId }}
+              </div>
+            </div>
+            <!-- Edit button (on hover, not while busy) -->
+            <button
+              v-if="hoveringMessageId === msg.id && !isBusy"
+              @click="handleEditStart(msg)"
+              class="mt-1 flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+              title="Edit message"
+            >
+              <Pencil :size="11" />
+              Edit
+            </button>
           </div>
         </div>
 
@@ -834,6 +1008,41 @@ const toggleModelDropdown = () => {
               v-html="renderMarkdown(msg.content)"
             ></div>
           </div>
+
+          <!-- Retry button (shown on hover for last assistant message, not while busy) -->
+          <button
+            v-if="hoveringMessageId === msg.id && !isBusy"
+            @click="handleRetry(msg)"
+            class="flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+            title="Retry this response"
+          >
+            <RotateCcw :size="11" />
+            Retry
+          </button>
+        </div>
+      </div>
+
+      <!-- Branch navigation bar -->
+      <div
+        v-if="currentBranches.length > 0 && !isBusy"
+        class="mt-4 flex items-center gap-2 p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800"
+      >
+        <GitBranch :size="14" class="text-purple-600 dark:text-purple-400 shrink-0" />
+        <span class="text-xs text-purple-700 dark:text-purple-300 font-medium shrink-0">
+          {{ currentBranches.length }} alternative
+          {{ currentBranches.length === 1 ? 'branch' : 'branches' }}
+        </span>
+        <div class="flex gap-1 flex-wrap">
+          <button
+            v-for="(branch, bIdx) in currentBranches"
+            :key="branch.id"
+            @click="handleSwitchBranch(branch.id)"
+            class="px-2 py-0.5 text-xs rounded border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-800/40 transition-colors"
+            :title="`Switch to branch ${bIdx + 1} (${branch.messages.length} messages)`"
+          >
+            <ChevronLeft :size="10" class="inline" />
+            Branch {{ bIdx + 1 }}
+          </button>
         </div>
       </div>
 
@@ -923,6 +1132,27 @@ const toggleModelDropdown = () => {
       <span class="text-sm text-purple-700 dark:text-purple-300"
         >Summarizing conversation to free up context...</span
       >
+    </div>
+
+    <!-- Provider Error Banner -->
+    <div
+      v-if="providerError"
+      class="px-4 py-3 bg-red-50 dark:bg-red-900/30 border-t border-b border-red-200 dark:border-red-800 flex items-start gap-2"
+    >
+      <AlertCircle :size="16" class="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium text-red-800 dark:text-red-300">Connection error</div>
+        <div class="text-xs text-red-700 dark:text-red-400 mt-0.5 break-words">
+          {{ providerError }}
+        </div>
+      </div>
+      <button
+        @click="providerError = null"
+        class="shrink-0 p-0.5 text-red-500 hover:text-red-700 dark:hover:text-red-300"
+        title="Dismiss"
+      >
+        <X :size="14" />
+      </button>
     </div>
 
     <!-- Input Area -->

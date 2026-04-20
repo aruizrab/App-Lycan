@@ -748,4 +748,213 @@ describe('chat store', () => {
       expect(apiMessages[2]).toEqual({ role: 'user', content: 'Continue.' })
     })
   })
+
+  describe('truncateFromMessage', () => {
+    beforeEach(() => {
+      store.createSession()
+    })
+
+    it('removes a message and everything after it', () => {
+      const m1 = store.addMessage({ role: 'user', content: 'Hello' })
+      const m2 = store.addMessage({ role: 'assistant', content: 'Hi there' })
+      store.addMessage({ role: 'user', content: 'Second question' })
+
+      store.truncateFromMessage(m2.id)
+
+      expect(store.messages).toHaveLength(1)
+      expect(store.messages[0].id).toBe(m1.id)
+    })
+
+    it('removes a message at index 0 leaving empty array', () => {
+      const m1 = store.addMessage({ role: 'user', content: 'Only message' })
+
+      store.truncateFromMessage(m1.id)
+
+      expect(store.messages).toHaveLength(0)
+    })
+
+    it('returns the index that was truncated from', () => {
+      store.addMessage({ role: 'user', content: 'First' })
+      const m2 = store.addMessage({ role: 'assistant', content: 'Second' })
+
+      const idx = store.truncateFromMessage(m2.id)
+
+      expect(idx).toBe(1)
+    })
+
+    it('returns -1 for a non-existent message id', () => {
+      store.addMessage({ role: 'user', content: 'Hello' })
+
+      const idx = store.truncateFromMessage('does-not-exist')
+
+      expect(idx).toBe(-1)
+      expect(store.messages).toHaveLength(1)
+    })
+
+    it('returns -1 when no session exists', () => {
+      store.clearAllSessions()
+      const idx = store.truncateFromMessage('any-id')
+      expect(idx).toBe(-1)
+    })
+
+    it('updates updatedAt timestamp', () => {
+      const session = store.currentSession
+      const before = session.updatedAt
+      const m1 = store.addMessage({ role: 'user', content: 'Hello' })
+      store.addMessage({ role: 'assistant', content: 'Hi' })
+
+      store.truncateFromMessage(m1.id)
+
+      expect(store.currentSession.updatedAt).toBeGreaterThanOrEqual(before)
+    })
+  })
+
+  describe('saveBranch', () => {
+    beforeEach(() => {
+      store.createSession()
+    })
+
+    it('saves current messages as a branch snapshot', () => {
+      store.addMessage({ role: 'user', content: 'Hello' })
+      store.addMessage({ role: 'assistant', content: 'Hi there' })
+
+      const branch = store.saveBranch()
+
+      expect(branch).toBeDefined()
+      expect(branch.id).toBeDefined()
+      expect(branch.messages).toHaveLength(2)
+      expect(branch.createdAt).toBeDefined()
+    })
+
+    it('adds the branch to the session branches array', () => {
+      store.addMessage({ role: 'user', content: 'Hello' })
+
+      store.saveBranch()
+
+      expect(store.currentBranches).toHaveLength(1)
+    })
+
+    it('creates a deep copy (snapshot) of messages', () => {
+      const m = store.addMessage({ role: 'user', content: 'Original' })
+
+      const branch = store.saveBranch()
+
+      // Mutate the original message
+      m.content = 'Mutated'
+
+      // Branch snapshot should not be affected
+      expect(branch.messages[0].content).toBe('Original')
+    })
+
+    it('returns null when no session exists', () => {
+      store.clearAllSessions()
+      const branch = store.saveBranch()
+      expect(branch).toBeNull()
+    })
+
+    it('multiple saves accumulate branches', () => {
+      store.addMessage({ role: 'user', content: 'First' })
+      store.saveBranch()
+      store.addMessage({ role: 'assistant', content: 'Reply' })
+      store.saveBranch()
+
+      expect(store.currentBranches).toHaveLength(2)
+    })
+  })
+
+  describe('switchBranch', () => {
+    beforeEach(() => {
+      store.createSession()
+    })
+
+    it('restores messages from the selected branch', () => {
+      store.addMessage({ role: 'user', content: 'Original message' })
+      const branch = store.saveBranch()
+
+      // Change current conversation
+      store.addMessage({ role: 'assistant', content: 'Response A' })
+
+      // Switch to the saved branch
+      store.switchBranch(branch.id)
+
+      expect(store.messages).toHaveLength(1)
+      expect(store.messages[0].content).toBe('Original message')
+    })
+
+    it('saves current messages as a new branch before switching', () => {
+      store.addMessage({ role: 'user', content: 'Current' })
+      const branch = store.saveBranch()
+
+      store.addMessage({ role: 'assistant', content: 'Response' })
+
+      store.switchBranch(branch.id)
+
+      // There should still be one branch (the old current was swapped in for the branch)
+      expect(store.currentBranches).toHaveLength(1)
+      // The remaining branch should contain the messages that were current
+      expect(store.currentBranches[0].messages.some((m) => m.content === 'Response')).toBe(true)
+    })
+
+    it('does nothing for a non-existent branch id', () => {
+      store.addMessage({ role: 'user', content: 'Hello' })
+
+      store.switchBranch('non-existent-id')
+
+      expect(store.messages).toHaveLength(1)
+      expect(store.messages[0].content).toBe('Hello')
+    })
+
+    it('does nothing when no session exists', () => {
+      store.clearAllSessions()
+      // Should not throw
+      store.switchBranch('any-id')
+    })
+  })
+
+  describe('currentBranches computed', () => {
+    it('returns empty array when session has no branches', () => {
+      store.createSession()
+      expect(store.currentBranches).toEqual([])
+    })
+
+    it('returns branches array for current session', () => {
+      store.createSession()
+      store.addMessage({ role: 'user', content: 'Hello' })
+      store.saveBranch()
+
+      expect(store.currentBranches).toHaveLength(1)
+    })
+
+    it('returns empty array when no session exists', () => {
+      expect(store.currentBranches).toEqual([])
+    })
+  })
+
+  describe('session branches persistence', () => {
+    it('initialises sessions without branches field with empty array on load', () => {
+      const saved = {
+        sessions: [
+          {
+            id: 'legacy-session',
+            title: 'Legacy',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            messages: [],
+            context: {}
+          }
+        ],
+        currentSessionId: 'legacy-session'
+      }
+      localStorage.setItem('app-lycan-chat-history', JSON.stringify(saved))
+
+      setActivePinia(createPinia())
+      const freshStore = useChatStore()
+      expect(freshStore.currentSession.branches).toEqual([])
+    })
+
+    it('new sessions are created with an empty branches array', () => {
+      const session = store.createSession()
+      expect(session.branches).toEqual([])
+    })
+  })
 })
