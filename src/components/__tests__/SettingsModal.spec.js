@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import SettingsModal from '../SettingsModal.vue'
 
 describe('SettingsModal', () => {
-  it('applies dark-mode friendly color classes to the header settings icon', () => {
+  it('renders with glass design classes when open', () => {
     const wrapper = mount(SettingsModal, {
       props: { isOpen: true },
       global: {
@@ -15,8 +15,9 @@ describe('SettingsModal', () => {
       }
     })
 
-    const icon = wrapper.find('svg.w-6.h-6')
-    expect(icon.classes()).toContain('text-gray-900')
-    expect(icon.classes()).toContain('dark:text-white')
+    const modal = wrapper.find('.modal')
+    expect(modal.exists()).toBe(true)
+    expect(modal.classes()).toContain('glass')
+    expect(modal.classes()).toContain('sheen')
   })
 })
