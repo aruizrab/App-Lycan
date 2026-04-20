@@ -1,49 +1,38 @@
 <template>
-  <div class="relative inline-block" ref="menuContainer">
+  <div class="am-wrap" ref="menuContainer">
     <button
+      ref="triggerBtn"
+      class="am-trigger"
+      :class="{ active: isOpen }"
+      type="button"
       @click.stop="toggleMenu"
-      class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-      :class="{ 'bg-gray-100 dark:bg-gray-700': isOpen }"
     >
-      <MoreVerticalIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
+      <MoreVertical :size="16" />
     </button>
 
-    <Transition
-      enter-active-class="transition ease-out duration-100"
-      enter-from-class="transform opacity-0 scale-95"
-      enter-to-class="transform opacity-100 scale-100"
-      leave-active-class="transition ease-in duration-75"
-      leave-from-class="transform opacity-100 scale-100"
-      leave-to-class="transform opacity-0 scale-95"
-    >
-      <div
-        v-if="isOpen"
-        class="absolute right-0 mt-2 w-48 rounded-lg shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50"
-      >
-        <div class="py-1">
+    <Teleport to="body">
+      <Transition name="am-fade">
+        <div v-if="isOpen" class="am-panel glass" :style="panelStyle">
           <button
             v-for="action in actions"
             :key="action.id"
+            class="am-item"
+            :class="{ 'am-item--danger': action.id === 'delete' }"
+            type="button"
             @click.stop="handleAction(action.id)"
-            class="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            :class="{ 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20': action.id === 'delete' }"
           >
-            <component 
-              :is="action.icon" 
-              class="w-4 h-4 mr-3" 
-              :class="{ 'text-red-600 dark:text-red-400': action.id === 'delete' }"
-            />
+            <component :is="action.icon" :size="14" />
             {{ action.label }}
           </button>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { MoreVertical as MoreVerticalIcon, Copy, Trash2, Download, Edit } from 'lucide-vue-next'
+import { MoreVertical, Copy, Trash2, Download, Edit } from 'lucide-vue-next'
 
 defineProps({
   actions: {
@@ -61,8 +50,33 @@ const emit = defineEmits(['action'])
 
 const isOpen = ref(false)
 const menuContainer = ref(null)
+const triggerBtn = ref(null)
+const panelStyle = ref({})
+
+const PANEL_WIDTH = 176 // px, matches min-width below
+
+const computePosition = () => {
+  if (!triggerBtn.value) return
+  const r = triggerBtn.value.getBoundingClientRect()
+  const spaceBelow = window.innerHeight - r.bottom
+  const top = spaceBelow >= 180 ? r.bottom + 6 : r.top - 6
+
+  // Anchor right edge of panel to right edge of trigger
+  let right = window.innerWidth - r.right
+  // Clamp so panel never goes off left edge
+  const leftEdge = window.innerWidth - right - PANEL_WIDTH
+  if (leftEdge < 8) right = window.innerWidth - PANEL_WIDTH - 8
+
+  panelStyle.value = {
+    position: 'fixed',
+    top: (spaceBelow >= 180 ? r.bottom + 6 : top - 180) + 'px',
+    right: right + 'px',
+    zIndex: 9999
+  }
+}
 
 const toggleMenu = () => {
+  if (!isOpen.value) computePosition()
   isOpen.value = !isOpen.value
 }
 
@@ -71,17 +85,106 @@ const handleAction = (actionId) => {
   isOpen.value = false
 }
 
-const handleClickOutside = (event) => {
-  if (menuContainer.value && !menuContainer.value.contains(event.target)) {
+const handleClickOutside = (e) => {
+  if (menuContainer.value && !menuContainer.value.contains(e.target)) {
     isOpen.value = false
   }
 }
 
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
+const handleScroll = () => {
+  isOpen.value = false
+}
 
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside, true)
+  document.addEventListener('scroll', handleScroll, true)
+})
 onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('click', handleClickOutside, true)
+  document.removeEventListener('scroll', handleScroll, true)
 })
 </script>
+
+<style scoped>
+.am-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Trigger button */
+.am-trigger {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+.am-trigger:hover,
+.am-trigger.active {
+  background: color-mix(in oklch, var(--fg-0) 10%, transparent);
+  color: var(--fg-0);
+}
+
+/* Dropdown panel */
+.am-panel {
+  min-width: 176px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklch, var(--fg-0) 12%, transparent);
+  padding: 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+/* Items */
+.am-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--fg-1);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+.am-item:hover {
+  background: color-mix(in oklch, var(--fg-0) 8%, transparent);
+  color: var(--fg-0);
+}
+.am-item--danger {
+  color: var(--danger);
+}
+.am-item--danger:hover {
+  background: color-mix(in oklch, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+/* Transition */
+.am-fade-enter-active {
+  transition:
+    opacity 0.1s ease,
+    transform 0.1s ease;
+}
+.am-fade-leave-active {
+  transition:
+    opacity 0.08s ease,
+    transform 0.08s ease;
+}
+.am-fade-enter-from,
+.am-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.95) translateY(-4px);
+}
+</style>

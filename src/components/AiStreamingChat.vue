@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import {
   Loader2,
   Send,
@@ -63,6 +63,11 @@ const props = defineProps({
   showClose: {
     type: Boolean,
     default: false
+  },
+  /** Show the built-in header row */
+  showHeader: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -88,6 +93,20 @@ const expandedToolCalls = ref(new Set()) // Track which tool calls have expanded
 const modelSearchQuery = ref('')
 const showModelDropdown = ref(false)
 
+// ── Streaming animation ────────────────────────────────────────────────────
+// Characters from the API buffer here before being drained at a fixed rate.
+const _streamQueue = ref('')
+// Characters actually shown on screen (fed by the drain timer).
+const _streamDisplayed = ref('')
+// Word-level chunks for the blur-in animation.
+const streamChunks = ref([]) // { text: string, id: number, isNew: boolean }
+let _drainTimerId = null
+let _chunkIdSeq = 0
+let _prevDisplayLen = 0
+const DRAIN_CHARS = 4 // chars per tick  (~250 chars/s at 16 ms/tick)
+const DRAIN_TICK = 16 // ms
+const CHUNK_ANIM = 300 // ms the blur-in animation lasts
+
 // Initialize tool handlers once
 onMounted(() => {
   if (!toolsInitialized.value) {
@@ -100,6 +119,18 @@ onMounted(() => {
       documentId: props.documentId
     })
   }
+
+  // Start the character-drip drain loop
+  _drainTimerId = setInterval(() => {
+    if (!_streamQueue.value.length) return
+    const take = _streamQueue.value.slice(0, DRAIN_CHARS)
+    _streamQueue.value = _streamQueue.value.slice(DRAIN_CHARS)
+    _streamDisplayed.value += take
+  }, DRAIN_TICK)
+})
+
+onUnmounted(() => {
+  clearInterval(_drainTimerId)
 })
 
 // Computed
@@ -268,6 +299,60 @@ watch(userInput, (val) => {
 
 watch(() => messages.value.length, scrollToBottom)
 watch(streamingContent, scrollToBottom)
+
+// Feed new API tokens into the drip queue
+watch(streamingContent, (next, prev) => {
+  const prevStr = prev || ''
+  if (!next) {
+    // Stream reset — flush & clear immediately
+    _streamQueue.value = ''
+    _streamDisplayed.value = ''
+    streamChunks.value = []
+    _prevDisplayLen = 0
+    return
+  }
+  if (next.length > prevStr.length) {
+    _streamQueue.value += next.slice(prevStr.length)
+  }
+})
+
+// Convert newly dripped characters → animated word chunks
+watch(_streamDisplayed, (next) => {
+  const newText = next.slice(_prevDisplayLen)
+  _prevDisplayLen = next.length
+  if (!newText) return
+
+  // Split on word boundaries so each token blurs in as a unit
+  const tokens = newText.match(/\S+|\s+/g) || [newText]
+  for (const token of tokens) {
+    const id = _chunkIdSeq++
+    streamChunks.value.push({ text: token, id, isNew: true })
+    setTimeout(() => {
+      const i = streamChunks.value.findIndex((c) => c.id === id)
+      if (i !== -1) streamChunks.value[i] = { ...streamChunks.value[i], isNew: false }
+    }, CHUNK_ANIM)
+  }
+
+  // Prevent unbounded growth on very long responses
+  if (streamChunks.value.length > 1000) {
+    streamChunks.value.splice(0, 400)
+  }
+})
+
+// When streaming ends, flush the remaining queue then clean up
+watch(isLoading, (loading) => {
+  if (!loading) {
+    _streamDisplayed.value += _streamQueue.value
+    _streamQueue.value = ''
+    // streamChunks are still visible (animating); the v-if="isLoading" wrapper
+    // hides them once streaming is done, so we just need a quiet reset.
+    setTimeout(() => {
+      streamChunks.value = []
+      _streamDisplayed.value = ''
+      _prevDisplayLen = 0
+    }, CHUNK_ANIM + 80)
+  }
+})
 
 const selectCommand = (cmd) => {
   userInput.value = `/${cmd.id} `
@@ -604,6 +689,7 @@ const toggleModelDropdown = () => {
 
     <!-- Unified Header -->
     <div
+      v-if="showHeader"
       class="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50"
     >
       <div class="flex items-center gap-2">
@@ -690,28 +776,22 @@ const toggleModelDropdown = () => {
     </div>
 
     <!-- Messages Area -->
-    <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4">
+    <div ref="messagesContainer" class="flex-1 overflow-y-auto chat-messages-area">
       <!-- Empty state -->
-      <div
-        v-if="messages.length === 0 && !streamingContent"
-        class="text-center text-gray-500 dark:text-gray-400 mt-10"
-      >
-        <div class="mb-4 flex justify-center">
-          <div class="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-            <MessageSquare :size="24" class="text-purple-600 dark:text-purple-400" />
-          </div>
+      <div v-if="messages.length === 0 && !streamingContent" class="chat-empty">
+        <div class="chat-empty-icon">
+          <MessageSquare :size="22" />
         </div>
-        <h3 class="text-lg font-medium mb-2">How can I help you?</h3>
-        <p class="text-sm max-w-xs mx-auto mb-6">
+        <h3 class="chat-empty-title">How can I help you?</h3>
+        <p class="chat-empty-sub">
           Ask me to analyze a job posting, improve your CV, or research a company.
         </p>
-        <!-- Quick command starters -->
-        <div class="flex flex-wrap justify-center gap-2">
+        <div class="chat-empty-chips">
           <button
             v-for="cmd in availableCommands"
             :key="cmd.id"
+            class="chat-chip"
             @click="selectCommand(cmd)"
-            class="px-3 py-1.5 text-xs rounded-full border border-gray-200 dark:border-gray-700 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 transition"
           >
             /{{ cmd.id }}
           </button>
@@ -719,118 +799,109 @@ const toggleModelDropdown = () => {
       </div>
 
       <!-- Message list -->
-      <div v-for="(msg, idx) in messages" :key="msg.id || idx" :class="getMessageSpacing(idx)">
-        <!-- User message -->
+      <div
+        v-for="(msg, idx) in messages"
+        :key="msg.id || idx"
+        class="msg-row"
+        :class="[getMessageSpacing(idx), msg.role === 'user' ? 'msg-row--user' : 'msg-row--ai']"
+      >
+        <!-- Sender label -->
         <div
-          v-if="msg.role === 'user'"
-          class="p-3 rounded-lg max-w-[90%] bg-blue-100 dark:bg-blue-900/30 ml-auto"
+          v-if="
+            msg.role === 'user' ||
+            (msg.role === 'assistant' && !msg.metadata?.isSummary && !isToolOnlyMessage(msg))
+          "
+          class="msg-meta"
         >
+          {{ msg.role === 'user' ? 'You' : 'Lycan' }}
+        </div>
+
+        <!-- User message -->
+        <div v-if="msg.role === 'user'" class="msg-bubble msg-bubble--user">
           <div
-            class="text-sm break-words prose prose-sm dark:prose-invert max-w-none"
+            class="prose prose-sm dark:prose-invert max-w-none"
             v-html="renderMarkdown(msg.content)"
           ></div>
-          <div v-if="msg.metadata?.commandId" class="mt-1 text-xs text-gray-400">
+          <div v-if="msg.metadata?.commandId" class="msg-cmd-tag">
             /{{ msg.metadata.commandId }}
           </div>
         </div>
 
         <!-- Error message -->
-        <div
-          v-else-if="msg.role === 'error'"
-          class="p-3 rounded-lg max-w-[90%] bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
-        >
+        <div v-else-if="msg.role === 'error'" class="msg-bubble msg-bubble--error">
           <div
-            class="text-sm break-words prose prose-sm dark:prose-invert max-w-none"
+            class="prose prose-sm dark:prose-invert max-w-none"
             v-html="renderMarkdown(msg.content)"
           ></div>
         </div>
 
-        <!-- Assistant message -->
-        <div v-else-if="msg.metadata?.isSummary" class="max-w-[90%]">
-          <!-- Summary message (special styling) -->
+        <!-- Summary message -->
+        <div v-else-if="msg.metadata?.isSummary" class="msg-card msg-card--summary">
+          <button class="mc-toggle" @click="toggleReasoning(msg.id)">
+            <BookOpen :size="13" />
+            <span>Conversation summary</span>
+            <span class="mc-count">({{ msg.metadata.summarizedCount }} messages)</span>
+            <ChevronRight v-if="!expandedReasoning.has(msg.id)" :size="13" class="mc-chevron" />
+            <ChevronDown v-else :size="13" class="mc-chevron" />
+          </button>
           <div
-            class="rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 overflow-hidden"
-          >
-            <button
-              @click="toggleReasoning(msg.id)"
-              class="w-full px-3 py-2 flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition"
-            >
-              <BookOpen :size="14" />
-              <span>Conversation summary</span>
-              <span class="text-[10px] text-slate-400 ml-1"
-                >({{ msg.metadata.summarizedCount }} messages)</span
-              >
-              <ChevronRight v-if="!expandedReasoning.has(msg.id)" :size="14" class="ml-auto" />
-              <ChevronDown v-else :size="14" class="ml-auto" />
-            </button>
-            <div
-              v-if="expandedReasoning.has(msg.id)"
-              class="px-3 py-2 text-xs text-gray-600 dark:text-gray-300 border-t border-slate-300 dark:border-slate-600 prose prose-xs dark:prose-invert max-w-none"
-              v-html="renderMarkdown(msg.content)"
-            ></div>
-          </div>
+            v-if="expandedReasoning.has(msg.id)"
+            class="mc-body prose prose-xs dark:prose-invert max-w-none"
+            v-html="renderMarkdown(msg.content)"
+          ></div>
         </div>
 
         <!-- Regular assistant message -->
-        <div v-else class="max-w-[90%] space-y-2">
-          <!-- Reasoning (if present) -->
-          <div
-            v-if="msg.reasoning"
-            class="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 overflow-hidden"
-          >
-            <button
-              @click="toggleReasoning(msg.id)"
-              class="w-full px-3 py-2 flex items-center gap-2 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition"
-            >
-              <Brain :size="14" />
+        <div v-else class="msg-ai-group">
+          <!-- Reasoning -->
+          <div v-if="msg.reasoning" class="msg-card msg-card--reasoning">
+            <button class="mc-toggle" @click="toggleReasoning(msg.id)">
+              <Brain :size="13" />
               <span>Reasoning</span>
-              <ChevronRight v-if="!expandedReasoning.has(msg.id)" :size="14" class="ml-auto" />
-              <ChevronDown v-else :size="14" class="ml-auto" />
+              <ChevronRight v-if="!expandedReasoning.has(msg.id)" :size="13" class="mc-chevron" />
+              <ChevronDown v-else :size="13" class="mc-chevron" />
             </button>
             <div
               v-if="expandedReasoning.has(msg.id)"
-              class="px-3 py-2 text-xs text-gray-600 dark:text-gray-300 border-t border-purple-200 dark:border-purple-800 prose prose-xs dark:prose-invert max-w-none"
+              class="mc-body prose prose-xs dark:prose-invert max-w-none"
               v-html="renderMarkdown(msg.reasoning)"
             ></div>
           </div>
 
-          <!-- Tool calls (if present) -->
-          <div v-if="msg.toolCalls && msg.toolCalls.length > 0" class="space-y-1">
+          <!-- Tool calls -->
+          <div v-if="msg.toolCalls && msg.toolCalls.length > 0" class="msg-tool-list">
             <div
               v-for="(toolCall, tcIdx) in msg.toolCalls"
               :key="toolCall.id || tcIdx"
-              class="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 overflow-hidden"
+              class="msg-card msg-card--tool"
             >
               <button
+                class="mc-toggle"
                 @click="toggleToolCall(toolCall.id || `${msg.id}-${tcIdx}`)"
-                class="w-full px-3 py-2 flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition"
               >
                 <Wrench :size="12" />
                 <span>{{ getToolDisplayName(toolCall.function.name) }}</span>
                 <ChevronRight
                   v-if="!expandedToolCalls.has(toolCall.id || `${msg.id}-${tcIdx}`)"
-                  :size="14"
-                  class="ml-auto"
+                  :size="13"
+                  class="mc-chevron"
                 />
-                <ChevronDown v-else :size="14" class="ml-auto" />
+                <ChevronDown v-else :size="13" class="mc-chevron" />
               </button>
               <div
                 v-if="expandedToolCalls.has(toolCall.id || `${msg.id}-${tcIdx}`)"
-                class="px-3 py-2 text-xs text-gray-600 dark:text-gray-300 border-t border-amber-200 dark:border-amber-800"
+                class="mc-body"
               >
-                <div class="font-medium mb-1 text-amber-700 dark:text-amber-300">Parameters:</div>
-                <pre
-                  class="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto text-[10px] leading-relaxed"
-                  >{{ formatToolArguments(toolCall.function.arguments) }}</pre
-                >
+                <p class="mc-label">Parameters:</p>
+                <pre class="mc-pre">{{ formatToolArguments(toolCall.function.arguments) }}</pre>
               </div>
             </div>
           </div>
 
           <!-- Main content -->
-          <div v-if="msg.content" class="p-3 rounded-lg bg-gray-100 dark:bg-gray-700">
+          <div v-if="msg.content" class="msg-bubble">
             <div
-              class="text-sm break-words prose prose-sm dark:prose-invert max-w-none"
+              class="prose prose-sm dark:prose-invert max-w-none"
               v-html="renderMarkdown(msg.content)"
             ></div>
           </div>
@@ -840,76 +911,67 @@ const toggleModelDropdown = () => {
       <!-- Streaming message -->
       <div
         v-if="isLoading"
-        class="max-w-[90%] space-y-2"
+        class="msg-row msg-row--ai"
         :class="
           messages.length > 0 && isToolOnlyMessage(messages[messages.length - 1]) ? 'mt-2' : 'mt-4'
         "
       >
-        <!-- Streaming reasoning -->
-        <div
-          v-if="streamingReasoning"
-          class="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 overflow-hidden"
-        >
-          <div
-            class="px-3 py-2 flex items-center gap-2 text-xs font-medium text-purple-700 dark:text-purple-300"
-          >
-            <Brain :size="14" />
-            <span>Reasoning...</span>
-            <Loader2 :size="12" class="ml-auto animate-spin" />
-          </div>
-        </div>
-
-        <!-- Streaming tool calls -->
-        <div v-if="streamingToolCalls.length > 0" class="space-y-1">
-          <div
-            v-for="(toolCall, idx) in streamingToolCalls"
-            :key="toolCall.id || idx"
-            class="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 overflow-hidden"
-          >
-            <button
-              @click="toggleToolCall(toolCall.id || `streaming-${idx}`)"
-              class="w-full px-3 py-2 flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition"
-            >
-              <Wrench :size="12" />
-              <span>{{ getToolDisplayName(toolCall.function.name) }}</span>
-              <Loader2 :size="12" class="ml-auto animate-spin" />
-            </button>
-            <div
-              v-if="expandedToolCalls.has(toolCall.id || `streaming-${idx}`)"
-              class="px-3 py-2 text-xs text-gray-600 dark:text-gray-300 border-t border-amber-200 dark:border-amber-800"
-            >
-              <!-- Sub-agent streaming output -->
-              <div v-if="streamingToolOutputs[toolCall.id]" class="mb-2">
-                <div class="font-medium mb-1 text-amber-700 dark:text-amber-300">Output:</div>
-                <div
-                  class="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-y-auto max-h-64 text-xs prose prose-sm dark:prose-invert max-w-none"
-                  v-html="renderMarkdown(streamingToolOutputs[toolCall.id])"
-                ></div>
-              </div>
-              <div class="font-medium mb-1 text-amber-700 dark:text-amber-300">Parameters:</div>
-              <pre
-                class="bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto text-[10px] leading-relaxed"
-                >{{ formatToolArguments(toolCall.function.arguments) }}</pre
-              >
+        <div class="msg-meta">Lycan</div>
+        <div class="msg-ai-group">
+          <!-- Streaming reasoning -->
+          <div v-if="streamingReasoning" class="msg-card msg-card--reasoning">
+            <div class="mc-toggle mc-toggle--static">
+              <Brain :size="13" />
+              <span>Reasoning…</span>
+              <Loader2 :size="12" class="animate-spin mc-chevron" />
             </div>
           </div>
-        </div>
 
-        <!-- Streaming content -->
-        <div v-if="streamingContent" class="p-3 rounded-lg bg-gray-100 dark:bg-gray-700">
+          <!-- Streaming tool calls -->
+          <div v-if="streamingToolCalls.length > 0" class="msg-tool-list">
+            <div
+              v-for="(toolCall, idx) in streamingToolCalls"
+              :key="toolCall.id || idx"
+              class="msg-card msg-card--tool"
+            >
+              <button class="mc-toggle" @click="toggleToolCall(toolCall.id || `streaming-${idx}`)">
+                <Wrench :size="12" />
+                <span>{{ getToolDisplayName(toolCall.function.name) }}</span>
+                <Loader2 :size="12" class="animate-spin mc-chevron" />
+              </button>
+              <div v-if="expandedToolCalls.has(toolCall.id || `streaming-${idx}`)" class="mc-body">
+                <div v-if="streamingToolOutputs[toolCall.id]" class="mc-tool-output">
+                  <p class="mc-label">Output:</p>
+                  <div
+                    class="mc-pre prose prose-sm dark:prose-invert max-w-none"
+                    v-html="renderMarkdown(streamingToolOutputs[toolCall.id])"
+                  ></div>
+                </div>
+                <p class="mc-label">Parameters:</p>
+                <pre class="mc-pre">{{ formatToolArguments(toolCall.function.arguments) }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Streaming content — animated word chunks -->
+          <div v-if="streamChunks.length > 0" class="msg-bubble stream-bubble">
+            <span
+              v-for="chunk in streamChunks"
+              :key="chunk.id"
+              class="sc"
+              :class="{ 'sc--new': chunk.isNew }"
+              >{{ chunk.text }}</span
+            >
+          </div>
+
+          <!-- Thinking dots (before first token arrives) -->
           <div
-            class="text-sm break-words prose prose-sm dark:prose-invert max-w-none"
-            v-html="renderMarkdown(streamingContent)"
-          ></div>
-        </div>
-
-        <!-- Loading indicator (when no other content) -->
-        <div
-          v-if="!streamingContent && !streamingReasoning && streamingToolCalls.length === 0"
-          class="flex items-center gap-2 text-gray-500 dark:text-gray-400"
-        >
-          <Loader2 :size="16" class="animate-spin" />
-          <span class="text-sm">Thinking...</span>
+            v-if="!streamChunks.length && !streamingReasoning && streamingToolCalls.length === 0"
+            class="msg-thinking"
+          >
+            <Loader2 :size="15" class="animate-spin" />
+            <span>Thinking…</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1059,6 +1121,281 @@ const toggleModelDropdown = () => {
 </template>
 
 <style scoped>
+/* ── Messages area ─────────────────────────────────────────── */
+.chat-messages-area {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 2px;
+}
+
+/* Empty state */
+.chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 16px;
+  gap: 8px;
+}
+.chat-empty-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.chat-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg-0);
+  margin: 0;
+}
+.chat-empty-sub {
+  font-size: 13px;
+  color: var(--fg-2);
+  max-width: 240px;
+  margin: 0;
+  line-height: 1.5;
+}
+.chat-empty-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.chat-chip {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--fg-0) 12%, transparent);
+  background: color-mix(in oklch, var(--fg-0) 4%, transparent);
+  color: var(--fg-2);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.chat-chip:hover {
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+  color: var(--accent);
+}
+
+/* ── Message row ───────────────────────────────────────────── */
+.msg-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 92%;
+}
+.msg-row--user {
+  align-self: flex-end;
+}
+.msg-row--ai {
+  align-self: flex-start;
+  margin-right: 16px;
+}
+
+/* Sender label */
+.msg-meta {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  padding: 0 2px;
+}
+.msg-row--user .msg-meta {
+  text-align: right;
+}
+
+/* ── Bubbles ───────────────────────────────────────────────── */
+.msg-bubble {
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  background: color-mix(in oklch, var(--fg-0) 5%, transparent);
+  border: 1px solid color-mix(in oklch, var(--fg-0) 8%, transparent);
+  color: var(--fg-0);
+  word-break: break-words;
+}
+.msg-bubble--user {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--accent) 28%, transparent),
+    color-mix(in oklch, var(--accent-2) 28%, transparent)
+  );
+  border-color: color-mix(in oklch, var(--accent) 38%, transparent);
+}
+.msg-bubble--error {
+  background: color-mix(in oklch, var(--danger) 8%, transparent);
+  border-color: color-mix(in oklch, var(--danger) 20%, transparent);
+  color: var(--danger);
+}
+
+.msg-cmd-tag {
+  margin-top: 4px;
+  font-size: 11px;
+  color: color-mix(in oklch, var(--fg-0) 50%, transparent);
+  font-family: var(--font-mono);
+}
+
+/* ── Assistant group ───────────────────────────────────────── */
+.msg-ai-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.msg-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Expandable cards (reasoning / tool / summary) ─────────── */
+.msg-card {
+  border-radius: 10px;
+  border: 1px solid;
+  overflow: hidden;
+  font-size: 12px;
+}
+.msg-card--reasoning {
+  border-color: color-mix(in oklch, var(--accent) 22%, transparent);
+  background: color-mix(in oklch, var(--accent) 6%, transparent);
+}
+.msg-card--tool {
+  border-color: color-mix(in oklch, var(--warn) 22%, transparent);
+  background: color-mix(in oklch, var(--warn) 6%, transparent);
+}
+.msg-card--summary {
+  border-color: color-mix(in oklch, var(--fg-0) 12%, transparent);
+  background: color-mix(in oklch, var(--fg-0) 4%, transparent);
+}
+
+/* Card toggle button */
+.mc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  transition: background 0.12s;
+}
+.mc-toggle--static {
+  cursor: default;
+}
+.msg-card--reasoning .mc-toggle {
+  color: var(--accent);
+}
+.msg-card--reasoning .mc-toggle:not(.mc-toggle--static):hover {
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
+}
+.msg-card--tool .mc-toggle {
+  color: var(--warn);
+}
+.msg-card--tool .mc-toggle:not(.mc-toggle--static):hover {
+  background: color-mix(in oklch, var(--warn) 8%, transparent);
+}
+.msg-card--summary .mc-toggle {
+  color: var(--fg-2);
+}
+.msg-card--summary .mc-toggle:not(.mc-toggle--static):hover {
+  background: color-mix(in oklch, var(--fg-0) 4%, transparent);
+}
+.mc-count {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.mc-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Card body */
+.mc-body {
+  padding: 8px 10px;
+  border-top: 1px solid color-mix(in oklch, var(--fg-0) 8%, transparent);
+  color: var(--fg-1);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.mc-label {
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.75;
+  margin: 0 0 4px;
+  font-size: 11px;
+}
+.mc-pre {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  background: color-mix(in oklch, var(--fg-0) 5%, transparent);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mc-tool-output {
+  margin-bottom: 10px;
+}
+
+/* Thinking dots */
+.msg-thinking {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--fg-2);
+  padding: 4px 2px;
+}
+
+/* ── Streaming word-chunk animation ────────────────────────────────────────── */
+.stream-bubble {
+  /* inherit bubble styles; font-size / line-height already set by .msg-bubble */
+  line-height: 1.65;
+}
+
+/* Each word/whitespace token */
+.sc {
+  display: inline;
+  white-space: pre-wrap;
+}
+
+/* New tokens blur+fade into view */
+@keyframes sc-in {
+  from {
+    opacity: 0;
+    filter: blur(7px);
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+.sc--new {
+  animation: sc-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -1157,9 +1494,18 @@ const toggleModelDropdown = () => {
   padding-left: 1.5em;
 }
 
+:deep(.prose ul) {
+  list-style-type: disc;
+}
+
+:deep(.prose ol) {
+  list-style-type: decimal;
+}
+
 :deep(.prose li) {
   margin-top: 0.25em;
   margin-bottom: 0.25em;
+  display: list-item;
 }
 
 :deep(.prose blockquote) {
