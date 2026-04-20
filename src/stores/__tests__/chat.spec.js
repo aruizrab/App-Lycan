@@ -931,7 +931,7 @@ describe('chat store', () => {
   })
 
   describe('session branches persistence', () => {
-    it('initialises sessions without branches field with empty array on load', () => {
+    it('initializes sessions without branches field with empty array on load', () => {
       const saved = {
         sessions: [
           {

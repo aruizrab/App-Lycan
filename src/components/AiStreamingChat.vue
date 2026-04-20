@@ -875,7 +875,11 @@ const toggleModelDropdown = () => {
           <!-- Inline edit mode -->
           <div v-if="editingMessageId === msg.id" class="w-full max-w-[90%] ml-auto">
             <textarea
-              ref="editTextarea"
+              :ref="
+                (el) => {
+                  if (editingMessageId === msg.id) editTextarea.value = el
+                }
+              "
               v-model="editingContent"
               class="edit-message-textarea w-full rounded-lg border border-blue-400 dark:border-blue-500 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none min-h-[60px] max-h-48"
               style="field-sizing: content"
