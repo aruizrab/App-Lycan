@@ -1,283 +1,358 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { X, Save, Calendar, Trash2 } from 'lucide-vue-next'
-import RichTextEditor from './RichTextEditor.vue'
+import ProfileEditor from './ProfileEditor.vue'
+import { useMarkdown } from '../composables/useMarkdown'
+
+const { renderMarkdown } = useMarkdown()
 
 const props = defineProps({
-    isOpen: {
-        type: Boolean,
-        required: true
-    },
-    mode: {
-        type: String, // 'view', 'edit', 'create'
-        default: 'view'
-    },
-    contextKey: {
-        type: String,
-        default: ''
-    },
-    contextContent: {
-        type: String,
-        default: ''
-    }
+  isOpen: {
+    type: Boolean,
+    required: true
+  },
+  mode: {
+    type: String, // 'view', 'edit', 'create'
+    default: 'view'
+  },
+  contextKey: {
+    type: String,
+    default: ''
+  },
+  contextContent: {
+    type: String,
+    default: ''
+  }
 })
 
 const emit = defineEmits(['close', 'save', 'delete'])
 
-// Local state
 const localContextKey = ref('')
 const localContextContent = ref('')
 const isEditing = ref(false)
 
-// Watch for prop changes
-watch(() => props.isOpen, (newVal) => {
+watch(
+  () => props.isOpen,
+  (newVal) => {
     if (newVal) {
-        localContextKey.value = props.contextKey
-        localContextContent.value = props.contextContent
-        isEditing.value = props.mode === 'edit' || props.mode === 'create'
+      localContextKey.value = props.contextKey
+      localContextContent.value = props.contextContent
+      isEditing.value = props.mode === 'edit' || props.mode === 'create'
     }
-}, { immediate: true })
+  },
+  { immediate: true }
+)
 
-watch(() => [props.contextKey, props.contextContent], () => {
+watch(
+  () => [props.contextKey, props.contextContent],
+  () => {
     if (props.isOpen) {
-        localContextKey.value = props.contextKey
-        localContextContent.value = props.contextContent
+      localContextKey.value = props.contextKey
+      localContextContent.value = props.contextContent
     }
-})
+  }
+)
 
-// Modal title
 const modalTitle = computed(() => {
-    if (props.mode === 'create') return 'Add Custom Context Entry'
-    if (props.mode === 'edit') return `Edit ${formatContextKey(props.contextKey)}`
-    return formatContextKey(props.contextKey)
+  if (props.mode === 'create') return 'Add context entry'
+  if (props.mode === 'edit') return `Edit — ${formatContextKey(props.contextKey)}`
+  return formatContextKey(props.contextKey)
 })
 
-// Format context key for display
 const formatContextKey = (key) => {
-    if (!key) return 'Context Entry'
-    return key
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/_/g, ' ')
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ')
-        .trim()
+  if (!key) return 'Context Entry'
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+    .trim()
 }
 
-// Handlers
-const handleClose = () => {
-    emit('close')
-}
+const handleClose = () => emit('close')
 
 const handleSave = () => {
-    if (props.mode === 'create' && !localContextKey.value.trim()) {
-        alert('Please enter a name for the context entry')
-        return
-    }
-    if (!localContextContent.value.trim()) {
-        alert('Please enter some content')
-        return
-    }
-    emit('save', {
-        key: localContextKey.value.trim(),
-        content: localContextContent.value
-    })
-    handleClose()
+  if (props.mode === 'create' && !localContextKey.value.trim()) {
+    alert('Please enter a name for the context entry')
+    return
+  }
+  if (!localContextContent.value.trim()) {
+    alert('Please enter some content')
+    return
+  }
+  emit('save', {
+    key: localContextKey.value.trim(),
+    content: localContextContent.value
+  })
+  handleClose()
 }
 
 const handleEdit = () => {
-    isEditing.value = true
+  isEditing.value = true
 }
 
 const handleDelete = () => {
-    if (confirm(`Are you sure you want to delete "${formatContextKey(props.contextKey)}"?`)) {
-        emit('delete', props.contextKey)
-        handleClose()
-    }
+  if (confirm(`Delete "${formatContextKey(props.contextKey)}"?`)) {
+    emit('delete', props.contextKey)
+    handleClose()
+  }
 }
 
-// Normalize context key: convert to snake_case
 const normalizeContextKey = () => {
-    localContextKey.value = localContextKey.value
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '_')
-        .replace(/[^a-z0-9_]/g, '')
+  localContextKey.value = localContextKey.value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
 }
 </script>
 
 <template>
-    <Transition name="modal">
-        <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <!-- Backdrop -->
+  <Transition name="ctx-modal">
+    <div v-if="isOpen" class="modal-backdrop" @click.self="handleClose">
+      <div class="modal lg glass ctx-modal-box">
+        <!-- Header -->
+        <div class="ctx-modal-head">
+          <h3>{{ modalTitle }}</h3>
+          <button class="icon-btn" @click="handleClose" title="Close">
+            <X :size="18" />
+          </button>
+        </div>
+
+        <!-- Content -->
+        <div class="ctx-modal-body">
+          <!-- Entry name (create only) -->
+          <div v-if="mode === 'create'" class="field">
+            <label>Entry name <span class="req">*</span></label>
+            <input
+              v-model="localContextKey"
+              @blur="normalizeContextKey"
+              type="text"
+              class="g-input"
+              placeholder="e.g., interview_notes or company_values"
+            />
+            <span class="field-hint"
+              >Lowercase, numbers and underscores only. Spaces → underscores.</span
+            >
+          </div>
+
+          <!-- Content label row -->
+          <div class="field">
+            <div class="between">
+              <label>Content <span class="req">*</span></label>
+              <div v-if="mode !== 'create' && localContextContent" class="ctx-meta-date">
+                <Calendar :size="12" />
+                Last modified
+              </div>
+            </div>
+
+            <!-- View mode -->
             <div
-                class="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                @click="handleClose"
+              v-if="!isEditing"
+              class="ctx-view-box"
+              v-html="renderMarkdown(localContextContent)"
             />
 
-            <!-- Modal -->
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col border border-gray-200 dark:border-gray-700">
-                <!-- Header -->
-                <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
-                        {{ modalTitle }}
-                    </h2>
-                    <button
-                        @click="handleClose"
-                        class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                        <X :size="20" />
-                    </button>
-                </div>
-
-                <!-- Content -->
-                <div class="flex-1 overflow-y-auto p-6 space-y-4">
-                    <!-- Context Key (only for create mode) -->
-                    <div v-if="mode === 'create'" class="space-y-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Entry Name <span class="text-red-500">*</span>
-                        </label>
-                        <input
-                            v-model="localContextKey"
-                            @blur="normalizeContextKey"
-                            type="text"
-                            placeholder="e.g., interview_notes or company_values"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                        />
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                            Use lowercase letters, numbers, and underscores only. Spaces will be converted to underscores.
-                        </p>
-                    </div>
-
-                    <!-- Context Content -->
-                    <div class="space-y-2">
-                        <div class="flex items-center justify-between">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Content <span class="text-red-500">*</span>
-                            </label>
-                            <!-- Modification Date (only in view/edit mode) -->
-                            <div v-if="mode !== 'create' && (props.contextContent || localContextContent)" class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                <Calendar :size="12" />
-                                Last modified
-                            </div>
-                        </div>
-                        
-                        <!-- View Mode -->
-                        <div v-if="!isEditing" class="prose prose-sm dark:prose-invert max-w-none p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 min-h-[200px]" v-html="localContextContent" />
-                        
-                        <!-- Edit Mode -->
-                        <RichTextEditor
-                            v-else
-                            v-model="localContextContent"
-                        />
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div class="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700">
-                    <!-- Delete Button (left side, only in view/edit mode, not create) -->
-                    <button
-                        v-if="mode !== 'create'"
-                        @click="handleDelete"
-                        class="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-2"
-                    >
-                        <Trash2 :size="16" />
-                        Delete
-                    </button>
-                    <div v-else></div>
-
-                    <!-- Action Buttons (right side) -->
-                    <div class="flex items-center gap-3">
-                        <button
-                            @click="handleClose"
-                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                        >
-                            {{ isEditing ? 'Cancel' : 'Close' }}
-                        </button>
-                        <button
-                            v-if="!isEditing && mode !== 'create'"
-                            @click="handleEdit"
-                            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
-                        >
-                            Edit
-                        </button>
-                        <button
-                            v-if="isEditing || mode === 'create'"
-                            @click="handleSave"
-                            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
-                        >
-                            <Save :size="16" />
-                            Save
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <!-- Edit / create mode -->
+            <ProfileEditor v-else v-model="localContextContent" caption="" />
+          </div>
         </div>
-    </Transition>
+
+        <!-- Footer -->
+        <div class="ctx-modal-foot">
+          <button v-if="mode !== 'create'" class="btn btn-danger" @click="handleDelete">
+            <Trash2 :size="15" />
+            Delete
+          </button>
+          <div v-else></div>
+
+          <div class="row" style="gap: 10px">
+            <button class="btn btn-ghost" @click="handleClose">
+              {{ isEditing ? 'Cancel' : 'Close' }}
+            </button>
+            <button
+              v-if="!isEditing && mode !== 'create'"
+              class="btn btn-primary"
+              @click="handleEdit"
+            >
+              Edit
+            </button>
+            <button
+              v-if="isEditing || mode === 'create'"
+              class="btn btn-primary"
+              @click="handleSave"
+            >
+              <Save :size="15" />
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <style scoped>
-@reference "tailwindcss";
-
-.modal-enter-active,
-.modal-leave-active {
-    transition: opacity 0.2s ease;
+/* ── Transition ─────────────────────────────────────────────── */
+.ctx-modal-enter-active {
+  transition: opacity 0.18s ease;
+}
+.ctx-modal-leave-active {
+  transition: opacity 0.14s ease;
+}
+.ctx-modal-enter-from,
+.ctx-modal-leave-to {
+  opacity: 0;
+}
+.ctx-modal-enter-active .ctx-modal-box,
+.ctx-modal-leave-active .ctx-modal-box {
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease;
+}
+.ctx-modal-enter-from .ctx-modal-box,
+.ctx-modal-leave-to .ctx-modal-box {
+  transform: scale(0.97) translateY(8px);
+  opacity: 0;
 }
 
-.modal-enter-from,
-.modal-leave-to {
-    opacity: 0;
+/* ── Modal sizing override ──────────────────────────────────── */
+.ctx-modal-box {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  gap: 0;
 }
 
-.modal-enter-active .relative,
-.modal-leave-active .relative {
-    transition: transform 0.2s ease;
+/* ── Header ─────────────────────────────────────────────────── */
+.ctx-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 26px 18px;
+  border-bottom: 1px solid color-mix(in oklch, var(--fg-0) 8%, transparent);
+  flex-shrink: 0;
+}
+.ctx-modal-head h3 {
+  /* override .modal h3 serif — context entry names look better sans */
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--fg-0);
 }
 
-.modal-enter-from .relative,
-.modal-leave-to .relative {
-    transform: scale(0.95);
+/* ── Body ───────────────────────────────────────────────────── */
+.ctx-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
+/* ── Field overrides ────────────────────────────────────────── */
+.req {
+  color: var(--danger);
+  font-weight: 600;
+}
+.field-hint {
+  font-size: 11.5px;
+  color: var(--fg-3);
+  line-height: 1.4;
+}
+
+/* ── Date meta ──────────────────────────────────────────────── */
+.ctx-meta-date {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+}
+
+/* ── View box (read-only content) ───────────────────────────── */
+.ctx-view-box {
+  min-height: 180px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in oklch, var(--fg-0) 8%, transparent);
+  background: color-mix(in oklch, var(--fg-0) 3%, transparent);
+  color: var(--fg-1);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-y: auto;
+}
 /* Prose styles for rich text display */
-.prose :deep(h1),
-.prose :deep(h2),
-.prose :deep(h3),
-.prose :deep(h4) {
-    @apply font-semibold mt-3 mb-2;
+.ctx-view-box :deep(h1),
+.ctx-view-box :deep(h2),
+.ctx-view-box :deep(h3),
+.ctx-view-box :deep(h4) {
+  font-weight: 600;
+  margin: 0.75em 0 0.4em;
+  color: var(--fg-0);
+}
+.ctx-view-box :deep(h2) {
+  font-size: 15px;
+}
+.ctx-view-box :deep(h3),
+.ctx-view-box :deep(h4) {
+  font-size: 13.5px;
+}
+.ctx-view-box :deep(ul),
+.ctx-view-box :deep(ol) {
+  padding-left: 1.4em;
+  margin: 0.5em 0;
+}
+.ctx-view-box :deep(ul) {
+  list-style-type: disc;
+}
+.ctx-view-box :deep(ol) {
+  list-style-type: decimal;
+}
+.ctx-view-box :deep(li) {
+  margin: 0.25em 0;
+  display: list-item;
+}
+.ctx-view-box :deep(p) {
+  margin: 0.5em 0;
+}
+.ctx-view-box :deep(p:first-child) {
+  margin-top: 0;
+}
+.ctx-view-box :deep(strong) {
+  font-weight: 600;
+  color: var(--fg-0);
+}
+.ctx-view-box :deep(em) {
+  font-style: italic;
 }
 
-.prose :deep(h2) {
-    @apply text-base;
+/* ── Footer ─────────────────────────────────────────────────── */
+.ctx-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 26px 22px;
+  border-top: 1px solid color-mix(in oklch, var(--fg-0) 8%, transparent);
+  flex-shrink: 0;
 }
 
-.prose :deep(h3),
-.prose :deep(h4) {
-    @apply text-sm;
+/* ── Danger button ──────────────────────────────────────────── */
+.btn-danger {
+  background: color-mix(in oklch, var(--danger) 10%, transparent);
+  border-color: color-mix(in oklch, var(--danger) 25%, transparent);
+  color: var(--danger);
 }
-
-.prose :deep(ul),
-.prose :deep(ol) {
-    @apply pl-5 my-2;
-}
-
-.prose :deep(li) {
-    @apply my-1 text-sm;
-}
-
-.prose :deep(p) {
-    @apply my-2 text-sm;
-}
-
-.prose :deep(strong) {
-    @apply font-semibold;
-}
-
-.prose :deep(em) {
-    @apply italic;
-}
-
-.prose :deep(u) {
-    @apply underline;
+.btn-danger:hover {
+  background: color-mix(in oklch, var(--danger) 18%, transparent);
+  border-color: color-mix(in oklch, var(--danger) 40%, transparent);
 }
 </style>

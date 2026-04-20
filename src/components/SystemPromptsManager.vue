@@ -238,345 +238,502 @@ const truncateContent = (content, maxLength = 150) => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
-    <!-- Tabs -->
-    <div
-      class="flex flex-wrap gap-1 p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
-    >
+  <div class="sp-root">
+    <!-- ——— CATEGORY ——— -->
+    <div class="label-line">Category</div>
+
+    <div class="sp-tabs">
       <button
         v-for="tab in TABS"
         :key="tab.id"
+        class="sp-tab"
+        :class="{ active: activeTab === tab.id }"
+        type="button"
         @click="selectTab(tab.id)"
-        :class="[
-          'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors',
-          activeTab === tab.id
-            ? 'bg-blue-600 text-white'
-            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
-        ]"
       >
-        <component :is="tab.icon" :size="14" />
-        <span class="hidden sm:inline">{{ tab.name }}</span>
+        <component :is="tab.icon" :size="13" />
+        {{ tab.name }}
       </button>
       <button
-        @click="showNewCategoryModal"
-        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 border border-dashed border-gray-300 dark:border-gray-600"
+        class="sp-tab sp-tab--add"
+        type="button"
         title="Add Category"
+        @click="showNewCategoryModal"
       >
-        <Plus :size="14" />
-        <span class="hidden sm:inline">Category</span>
+        <Plus :size="13" /> Category
       </button>
     </div>
 
     <!-- New Category Form -->
-    <div
-      v-if="showNewCategoryForm"
-      class="p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800"
-    >
-      <h4 class="font-medium text-gray-900 dark:text-white mb-3">New Category</h4>
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >Category Name</label
-          >
-          <input
-            v-model="newCategoryName"
-            @input="autoGenerateKey"
-            type="text"
-            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-            placeholder="e.g. Technical Review"
-          />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >Key (auto-generated)</label
-          >
-          <input
-            v-model="newCategoryKey"
-            type="text"
-            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono"
-            placeholder="e.g. technical-review"
-          />
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Lowercase, alphanumeric, hyphens only.
-          </p>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >Default Prompt</label
-          >
-          <textarea
-            v-model="newCategoryDefaultPrompt"
-            rows="6"
-            :class="[
-              'w-full rounded-lg border bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono',
-              categoryError && !newCategoryDefaultPrompt.trim()
-                ? 'border-red-400 dark:border-red-500'
-                : 'border-gray-300 dark:border-gray-600'
-            ]"
-            placeholder="Enter the default system prompt for this category..."
-          />
-        </div>
-        <p v-if="categoryError" class="text-xs text-red-600 dark:text-red-400">
-          {{ categoryError }}
-        </p>
-        <div class="flex items-center gap-2">
-          <button
-            @click="createCategory"
-            :disabled="!newCategoryName.trim() || !newCategoryKey.trim()"
-            class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-          >
-            <Check :size="16" />
-            Create
-          </button>
-          <button
-            @click="cancelNewCategory"
-            class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded-lg transition-colors"
-          >
-            <X :size="16" />
-            Cancel
-          </button>
-        </div>
+    <div v-if="showNewCategoryForm" class="sp-form-box">
+      <div class="label-line">New Category</div>
+      <div class="field">
+        <label>Category Name</label>
+        <input
+          v-model="newCategoryName"
+          type="text"
+          class="g-input"
+          placeholder="e.g. Technical Review"
+          @input="autoGenerateKey"
+        />
+      </div>
+      <div class="field">
+        <label>Key (auto-generated)</label>
+        <input
+          v-model="newCategoryKey"
+          type="text"
+          class="g-input sp-mono"
+          placeholder="e.g. technical-review"
+        />
+        <span class="sp-hint">Lowercase, alphanumeric, hyphens only.</span>
+      </div>
+      <div class="field">
+        <label>Default Prompt</label>
+        <textarea
+          v-model="newCategoryDefaultPrompt"
+          rows="5"
+          class="g-textarea sp-mono"
+          :class="{ 'sp-error-border': categoryError && !newCategoryDefaultPrompt.trim() }"
+          placeholder="Enter the default system prompt for this category…"
+        />
+      </div>
+      <p v-if="categoryError" class="sp-error-text">{{ categoryError }}</p>
+      <div class="sp-btns">
+        <button
+          class="btn btn-primary btn-small"
+          type="button"
+          :disabled="!newCategoryName.trim() || !newCategoryKey.trim()"
+          @click="createCategory"
+        >
+          <Check :size="14" /> Create
+        </button>
+        <button class="btn btn-ghost btn-small" type="button" @click="cancelNewCategory">
+          <X :size="14" /> Cancel
+        </button>
       </div>
     </div>
 
-    <!-- Content -->
-    <div class="flex-1 overflow-y-auto p-4">
-      <!-- Active Prompt Indicator -->
-      <div
-        class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800"
-      >
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <Check :size="16" class="text-blue-600 dark:text-blue-400" />
-            <span class="text-sm text-blue-800 dark:text-blue-200">
-              Active: <strong>{{ activePrompt?.name || 'Default' }}</strong>
-            </span>
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              v-if="activePrompt?.id !== 'default'"
-              @click="resetToDefault"
-              class="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-            >
-              <RotateCcw :size="12" />
-              Reset to Default
-            </button>
-            <button
-              v-if="isCustomCategory"
-              @click="deleteCategory(activeTab)"
-              class="text-xs text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
-            >
-              <Trash2 :size="12" />
-              Delete Category
-            </button>
-          </div>
-        </div>
+    <!-- ——— ACTIVE PROMPT ——— -->
+    <div class="label-line">Active Prompt</div>
+
+    <div class="sp-active-bar">
+      <div class="sp-active-info">
+        <Check :size="14" class="sp-check-icon" />
+        <span>{{ activePrompt?.name || 'Default' }}</span>
       </div>
-
-      <!-- New Prompt Form -->
-      <div
-        v-if="showNewPromptForm"
-        class="mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
-      >
-        <h4 class="font-medium text-gray-900 dark:text-white mb-3">Create New Prompt</h4>
-
-        <div class="space-y-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Prompt Name
-            </label>
-            <input
-              v-model="newPromptName"
-              type="text"
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-              placeholder="My Custom Prompt"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Prompt Content
-            </label>
-            <textarea
-              v-model="newPromptContent"
-              rows="10"
-              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono"
-              placeholder="Enter your system prompt..."
-            />
-          </div>
-
-          <div class="flex items-center gap-2">
-            <button
-              @click="createNewPrompt"
-              :disabled="!newPromptName.trim()"
-              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-            >
-              <Check :size="16" />
-              Create Prompt
-            </button>
-            <button
-              @click="cancelNewPrompt"
-              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded-lg transition-colors"
-            >
-              <X :size="16" />
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Add New Button -->
-      <button
-        v-if="!showNewPromptForm"
-        @click="showNewForm"
-        class="w-full mb-4 flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-blue-500 hover:text-blue-500 transition-colors"
-      >
-        <Plus :size="20" />
-        Create New Prompt
-      </button>
-
-      <!-- Prompts List -->
-      <div class="space-y-2">
-        <div
-          v-for="prompt in currentPrompts"
-          :key="prompt.id"
-          class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+      <div class="sp-active-actions">
+        <button
+          v-if="activePrompt?.id !== 'default'"
+          class="btn btn-ghost btn-xs"
+          type="button"
+          @click="resetToDefault"
         >
-          <!-- Prompt Header -->
-          <div
-            class="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-            @click="toggleExpand(prompt.id)"
+          <RotateCcw :size="12" /> Reset
+        </button>
+        <button
+          v-if="isCustomCategory"
+          class="btn btn-ghost btn-xs sp-danger"
+          type="button"
+          @click="deleteCategory(activeTab)"
+        >
+          <Trash2 :size="12" /> Delete Category
+        </button>
+      </div>
+    </div>
+
+    <!-- ——— PROMPTS ——— -->
+    <div class="label-line">Prompts</div>
+
+    <!-- New Prompt Form -->
+    <div v-if="showNewPromptForm" class="sp-form-box">
+      <div class="field">
+        <label>Prompt Name</label>
+        <input v-model="newPromptName" type="text" class="g-input" placeholder="My Custom Prompt" />
+      </div>
+      <div class="field">
+        <label>Content</label>
+        <textarea
+          v-model="newPromptContent"
+          rows="8"
+          class="g-textarea sp-mono"
+          placeholder="Enter your system prompt…"
+        />
+      </div>
+      <div class="sp-btns">
+        <button
+          class="btn btn-primary btn-small"
+          type="button"
+          :disabled="!newPromptName.trim()"
+          @click="createNewPrompt"
+        >
+          <Check :size="14" /> Create Prompt
+        </button>
+        <button class="btn btn-ghost btn-small" type="button" @click="cancelNewPrompt">
+          <X :size="14" /> Cancel
+        </button>
+      </div>
+    </div>
+
+    <button v-if="!showNewPromptForm" class="sp-add-prompt-btn" type="button" @click="showNewForm">
+      <Plus :size="16" /> Create New Prompt
+    </button>
+
+    <!-- Prompts list -->
+    <div class="sp-prompts">
+      <div
+        v-for="prompt in currentPrompts"
+        :key="prompt.id"
+        class="sp-prompt"
+        :class="{ expanded: expandedPromptId === prompt.id }"
+      >
+        <!-- Prompt row -->
+        <div class="sp-prompt-row" @click="toggleExpand(prompt.id)">
+          <button
+            class="sp-radio"
+            :class="{ active: activePrompt?.id === prompt.id }"
+            type="button"
+            @click.stop="setActivePrompt(prompt.id)"
           >
-            <div class="flex items-center gap-3 min-w-0">
-              <button
-                @click.stop="setActivePrompt(prompt.id)"
-                :class="[
-                  'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
-                  activePrompt?.id === prompt.id
-                    ? 'border-blue-600 bg-blue-600'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'
-                ]"
-              >
-                <Check v-if="activePrompt?.id === prompt.id" :size="12" class="text-white" />
-              </button>
-
-              <div class="min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="font-medium text-gray-900 dark:text-white">{{ prompt.name }}</span>
-                  <span
-                    v-if="prompt.isDefault"
-                    class="px-1.5 py-0.5 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
-                  >
-                    Default
-                  </span>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  {{ truncateContent(prompt.content) }}
-                </p>
-              </div>
-            </div>
-
-            <component
-              :is="expandedPromptId === prompt.id ? ChevronDown : ChevronRight"
-              :size="20"
-              class="text-gray-400 flex-shrink-0"
-            />
+            <Check v-if="activePrompt?.id === prompt.id" :size="11" />
+          </button>
+          <div class="sp-prompt-meta">
+            <span class="sp-prompt-name">{{ prompt.name }}</span>
+            <span v-if="prompt.isDefault" class="sp-default-badge">Default</span>
+            <span class="sp-prompt-preview">{{ truncateContent(prompt.content) }}</span>
           </div>
+          <component
+            :is="expandedPromptId === prompt.id ? ChevronDown : ChevronRight"
+            :size="16"
+            class="sp-chevron"
+          />
+        </div>
 
-          <!-- Expanded Content -->
-          <div
-            v-if="expandedPromptId === prompt.id"
-            class="border-t border-gray-100 dark:border-gray-700"
-          >
-            <!-- Edit Mode -->
-            <div v-if="editingPromptId === prompt.id && !prompt.isDefault" class="p-4 space-y-3">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                  >Name</label
-                >
-                <input
-                  v-model="editName"
-                  type="text"
-                  class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-                />
-              </div>
+        <!-- Expanded: Edit mode -->
+        <div
+          v-if="
+            expandedPromptId === prompt.id && editingPromptId === prompt.id && !prompt.isDefault
+          "
+          class="sp-expanded"
+        >
+          <div class="field">
+            <label>Name</label>
+            <input v-model="editName" type="text" class="g-input" />
+          </div>
+          <div class="field">
+            <label>Content</label>
+            <textarea v-model="editContent" rows="10" class="g-textarea sp-mono" />
+          </div>
+          <div class="sp-btns">
+            <button class="btn btn-primary btn-small" type="button" @click="saveEdit">
+              <Check :size="14" /> Save
+            </button>
+            <button class="btn btn-ghost btn-small" type="button" @click="cancelEdit">
+              <X :size="14" /> Cancel
+            </button>
+          </div>
+        </div>
 
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                  >Content</label
-                >
-                <textarea
-                  v-model="editContent"
-                  rows="12"
-                  class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono"
-                />
-              </div>
-
-              <div class="flex items-center gap-2">
-                <button
-                  @click="saveEdit"
-                  class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  <Check :size="16" />
-                  Save
-                </button>
-                <button
-                  @click="cancelEdit"
-                  class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded-lg transition-colors"
-                >
-                  <X :size="16" />
-                  Cancel
-                </button>
-              </div>
-            </div>
-
-            <!-- View Mode -->
-            <div v-else class="p-4">
-              <pre
-                class="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono bg-gray-50 dark:bg-gray-900 p-3 rounded max-h-64 overflow-y-auto"
-                >{{ prompt.content }}</pre
-              >
-
-              <div class="flex items-center gap-2 mt-4">
-                <button
-                  @click="setActivePrompt(prompt.id)"
-                  :disabled="activePrompt?.id === prompt.id"
-                  class="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
-                >
-                  <Check :size="14" />
-                  {{ activePrompt?.id === prompt.id ? 'Active' : 'Use This' }}
-                </button>
-
-                <button
-                  @click="duplicatePrompt(prompt.id)"
-                  class="p-2 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                  title="Duplicate"
-                >
-                  <Copy :size="16" />
-                </button>
-
-                <button
-                  v-if="!prompt.isDefault"
-                  @click="startEdit(prompt)"
-                  class="p-2 text-gray-500 hover:text-green-600 dark:hover:text-green-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                  title="Edit"
-                >
-                  <Edit :size="16" />
-                </button>
-
-                <button
-                  v-if="!prompt.isDefault"
-                  @click="deletePrompt(prompt.id)"
-                  class="p-2 text-gray-500 hover:text-red-600 dark:hover:text-red-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                  title="Delete"
-                >
-                  <Trash2 :size="16" />
-                </button>
-              </div>
-            </div>
+        <!-- Expanded: View mode -->
+        <div v-else-if="expandedPromptId === prompt.id" class="sp-expanded">
+          <pre class="sp-pre">{{ prompt.content }}</pre>
+          <div class="sp-view-actions">
+            <button
+              class="btn btn-primary btn-small"
+              type="button"
+              :disabled="activePrompt?.id === prompt.id"
+              @click="setActivePrompt(prompt.id)"
+            >
+              <Check :size="14" />
+              {{ activePrompt?.id === prompt.id ? 'Active' : 'Use This' }}
+            </button>
+            <button
+              class="btn btn-ghost btn-small"
+              type="button"
+              title="Duplicate"
+              @click="duplicatePrompt(prompt.id)"
+            >
+              <Copy :size="14" />
+            </button>
+            <button
+              v-if="!prompt.isDefault"
+              class="btn btn-ghost btn-small"
+              type="button"
+              title="Edit"
+              @click="startEdit(prompt)"
+            >
+              <Edit :size="14" />
+            </button>
+            <button
+              v-if="!prompt.isDefault"
+              class="btn btn-ghost btn-small sp-danger"
+              type="button"
+              title="Delete"
+              @click="deletePrompt(prompt.id)"
+            >
+              <Trash2 :size="14" />
+            </button>
           </div>
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.sp-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+/* Tabs */
+.sp-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid color-mix(in oklch, var(--fg-0) 10%, transparent);
+  background: color-mix(in oklch, var(--fg-0) 3%, transparent);
+  color: var(--fg-2);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.sp-tab:hover {
+  background: color-mix(in oklch, var(--fg-0) 8%, transparent);
+  color: var(--fg-0);
+}
+.sp-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.sp-tab--add {
+  border-style: dashed;
+  color: var(--fg-3);
+}
+
+/* Category form / prompt form */
+.sp-form-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--fg-0) 3%, transparent);
+  border: 1px solid color-mix(in oklch, var(--fg-0) 8%, transparent);
+}
+.sp-hint {
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.sp-error-text {
+  font-size: 12px;
+  color: var(--danger);
+}
+.sp-error-border {
+  border-color: var(--danger) !important;
+}
+.sp-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.sp-btns {
+  display: flex;
+  gap: 8px;
+}
+.sp-btns .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* Active prompt bar */
+.sp-active-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--accent) 6%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent) 15%, transparent);
+  font-size: 13px;
+}
+.sp-active-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-0);
+  font-weight: 500;
+}
+.sp-check-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.sp-active-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sp-danger {
+  color: var(--danger) !important;
+}
+
+/* Add prompt button */
+.sp-add-prompt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in oklch, var(--fg-0) 15%, transparent);
+  background: none;
+  color: var(--fg-3);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+.sp-add-prompt-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 5%, transparent);
+}
+
+/* Prompt list */
+.sp-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sp-prompt {
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklch, var(--fg-0) 8%, transparent);
+  background: color-mix(in oklch, var(--fg-0) 2%, transparent);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.sp-prompt.expanded {
+  border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+}
+
+.sp-prompt-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.sp-prompt-row:hover {
+  background: color-mix(in oklch, var(--fg-0) 4%, transparent);
+}
+
+.sp-radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in oklch, var(--fg-0) 20%, transparent);
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+  margin-top: 2px;
+}
+.sp-radio:hover {
+  border-color: var(--accent);
+}
+.sp-radio.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.sp-prompt-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sp-prompt-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-0);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sp-default-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--fg-0) 10%, transparent);
+  color: var(--fg-2);
+}
+.sp-prompt-preview {
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sp-chevron {
+  color: var(--fg-3);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+/* Expanded content */
+.sp-expanded {
+  padding: 12px;
+  border-top: 1px solid color-mix(in oklch, var(--fg-0) 8%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sp-pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-1);
+  background: color-mix(in oklch, var(--fg-0) 4%, transparent);
+  border: 1px solid color-mix(in oklch, var(--fg-0) 8%, transparent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+.sp-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sp-view-actions .btn:first-child {
+  flex: 1;
+  justify-content: center;
+}
+</style>

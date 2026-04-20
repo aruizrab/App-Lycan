@@ -1,48 +1,32 @@
 <template>
   <Teleport to="body">
-    <Transition name="modal">
-      <div
-        v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-      >
-        <div
-          class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
-        >
-          <!-- Header -->
-          <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-            <div class="flex items-center gap-2">
-              <SettingsIcon class="w-6 h-6 text-gray-900 dark:text-white" />
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">AI Settings</h2>
-            </div>
-            <button
-              @click="close"
-              class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title="Close"
-            >
-              <XIcon class="w-5 h-5" />
-            </button>
-          </div>
+    <div v-if="isOpen" class="modal-backdrop" @click.self="close">
+      <div class="modal lg glass sheen settings-modal" @click.stop>
+        <!-- Header -->
+        <div class="between">
+          <h3>Settings</h3>
+          <button class="icon-btn" @click="close" title="Close">
+            <XIcon :size="18" />
+          </button>
+        </div>
 
-          <!-- Tab Navigation -->
-          <div class="flex gap-2 px-6 pt-4 border-b border-gray-200 dark:border-gray-700">
+        <!-- Two-column layout -->
+        <div class="two-col">
+          <!-- Side navigation -->
+          <nav class="side-nav">
             <button
               v-for="tab in tabs"
               :key="tab.id"
               @click="activeTab = tab.id"
-              :class="[
-                'px-4 py-2 font-medium transition-colors border-b-2 -mb-px',
-                activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              ]"
+              :class="{ active: activeTab === tab.id }"
             >
-              <component :is="tab.icon" class="w-4 h-4 inline mr-2" />
+              <component :is="tab.icon" :size="16" />
               {{ tab.label }}
             </button>
-          </div>
+          </nav>
 
-          <!-- Content -->
-          <div class="flex-1 overflow-y-auto p-6">
+          <!-- Content pane -->
+          <div class="settings-content">
             <!-- Model Settings Tab -->
             <div v-if="activeTab === 'models'">
               <ModelSettings />
@@ -54,78 +38,71 @@
             </div>
 
             <!-- General Settings Tab -->
-            <div v-if="activeTab === 'general'" class="space-y-6">
-              <div>
-                <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">Data Management</h3>
-                
-                <div class="space-y-4">
-                  <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <div>
-                      <p class="font-medium text-gray-900 dark:text-white">Export All Settings</p>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">Download all AI settings as JSON</p>
-                    </div>
-                    <button
-                      @click="exportSettings"
-                      class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <DownloadIcon class="w-4 h-4" />
-                      Export
-                    </button>
-                  </div>
+            <div v-if="activeTab === 'general'" class="settings-general">
+              <h4>Data Management</h4>
 
-                  <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <div>
-                      <p class="font-medium text-gray-900 dark:text-white">Import Settings</p>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">Restore settings from a JSON file</p>
-                    </div>
-                    <label class="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors cursor-pointer">
-                      <UploadIcon class="w-4 h-4" />
-                      Import
-                      <input type="file" accept=".json" @change="importSettings" class="hidden" />
-                    </label>
+              <div class="settings-row-group">
+                <div class="toggle-row">
+                  <div>
+                    <p class="row-label">Export All Settings</p>
+                    <p class="row-desc">Download all AI settings as JSON</p>
                   </div>
+                  <button class="btn btn-ghost btn-small" @click="exportSettings">
+                    <DownloadIcon :size="14" />
+                    Export
+                  </button>
+                </div>
 
-                  <div class="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                    <div>
-                      <p class="font-medium text-red-700 dark:text-red-400">Reset All Settings</p>
-                      <p class="text-sm text-red-600 dark:text-red-400">This will reset all AI settings to defaults</p>
-                    </div>
-                    <button
-                      @click="confirmReset"
-                      class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      <Trash2Icon class="w-4 h-4" />
-                      Reset
-                    </button>
+                <div class="toggle-row">
+                  <div>
+                    <p class="row-label">Import Settings</p>
+                    <p class="row-desc">Restore settings from a JSON file</p>
                   </div>
+                  <label class="btn btn-ghost btn-small import-label">
+                    <UploadIcon :size="14" />
+                    Import
+                    <input
+                      type="file"
+                      accept=".json"
+                      @change="importSettings"
+                      style="display: none"
+                    />
+                  </label>
+                </div>
+
+                <div class="toggle-row danger-row">
+                  <div>
+                    <p class="row-label danger-label">Reset All Settings</p>
+                    <p class="row-desc">This will reset all AI settings to defaults</p>
+                  </div>
+                  <button class="btn btn-ghost btn-small danger-btn" @click="confirmReset">
+                    <Trash2Icon :size="14" />
+                    Reset
+                  </button>
                 </div>
               </div>
 
-              <hr class="border-gray-200 dark:border-gray-700" />
+              <div class="label-line">About</div>
 
-              <div>
-                <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">About</h3>
-                <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <p><strong>App-Lycan UI</strong> - CV & Cover Letter Builder</p>
-                  <p>Version: 1.0.0</p>
-                  <p class="pt-2">All data is stored locally in your browser. No data is sent to external servers except when using AI features with your OpenRouter API key.</p>
-                </div>
+              <div class="about-block">
+                <p><strong>App-Lycan UI</strong> &mdash; CV &amp; Cover Letter Builder</p>
+                <p>Version: 1.0.0</p>
+                <p>
+                  All data is stored locally in your browser. No data is sent to external servers
+                  except when using AI features with your OpenRouter API key.
+                </p>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Footer -->
-          <div class="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-            <button
-              @click="close"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Done
-            </button>
-          </div>
+        <!-- Footer -->
+        <div class="modal-actions">
+          <button class="btn btn-ghost" @click="close">Close</button>
+          <button class="btn btn-primary" @click="close">Save</button>
         </div>
       </div>
-    </Transition>
+    </div>
   </Teleport>
 </template>
 
@@ -136,7 +113,6 @@ import { useSystemPromptsStore } from '../stores/systemPrompts'
 import ModelSettings from './ModelSettings.vue'
 import SystemPromptsManager from './SystemPromptsManager.vue'
 import {
-  Settings as SettingsIcon,
   X as XIcon,
   Cpu,
   FileText,
@@ -220,7 +196,9 @@ const importSettings = async (event) => {
 }
 
 const confirmReset = () => {
-  if (confirm('Are you sure you want to reset all AI settings to defaults? This cannot be undone.')) {
+  if (
+    confirm('Are you sure you want to reset all AI settings to defaults? This cannot be undone.')
+  ) {
     settingsStore.resetSettings()
     systemPromptsStore.resetAllToDefaults()
     alert('All settings have been reset to defaults.')
@@ -229,27 +207,69 @@ const confirmReset = () => {
 </script>
 
 <style scoped>
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.3s ease;
+.settings-modal {
+  max-height: 80vh;
+  overflow: auto;
 }
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
+.settings-content {
+  min-height: 0;
+  overflow-y: auto;
 }
-
-.modal-enter-active .bg-white,
-.modal-leave-active .bg-white,
-.modal-enter-active .dark\:bg-gray-800,
-.modal-leave-active .dark\:bg-gray-800 {
-  transition: transform 0.3s ease;
+.settings-general {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
-
-.modal-enter-from .bg-white,
-.modal-leave-to .bg-white,
-.modal-enter-from .dark\:bg-gray-800,
-.modal-leave-to .dark\:bg-gray-800 {
-  transform: scale(0.95);
+.settings-general h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--fg-0);
+}
+.settings-row-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.row-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-0);
+  margin: 0;
+}
+.row-desc {
+  font-size: 12px;
+  color: var(--fg-2);
+  margin: 0;
+}
+.import-label {
+  cursor: pointer;
+}
+.danger-row {
+  border-top: 1px solid color-mix(in oklch, var(--danger) 20%, transparent);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+.danger-label {
+  color: var(--danger);
+}
+.danger-btn {
+  color: var(--danger);
+  border-color: color-mix(in oklch, var(--danger) 30%, transparent);
+}
+.danger-btn:hover {
+  background: color-mix(in oklch, var(--danger) 15%, transparent);
+}
+.about-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.about-block p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-2);
+  line-height: 1.5;
 }
 </style>

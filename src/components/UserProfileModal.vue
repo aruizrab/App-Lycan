@@ -1,145 +1,116 @@
 <template>
   <Teleport to="body">
-    <Transition name="modal">
+    <div v-if="isOpen" class="modal-backdrop" @click.self="handleBackdropClick">
       <div
-        v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-        @click.self="handleBackdropClick"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-modal-title"
+        class="modal lg glass sheen modal-profile"
+        @click.stop
       >
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="user-profile-modal-title"
-          class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
-        >
-          <!-- Header -->
-          <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-            <div class="flex items-center gap-3">
-              <div class="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                <UserIcon class="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <h2 id="user-profile-modal-title" class="text-xl font-semibold text-gray-900 dark:text-white">User Profile</h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Your professional details for AI-powered applications</p>
-              </div>
+        <!-- Header -->
+        <div class="between">
+          <div class="row" style="gap: 12px">
+            <div class="avatar-lg">
+              <UserIcon :size="26" />
             </div>
-
-            <div class="flex items-center gap-2">
-              <!-- Last saved indicator -->
-              <div v-if="lastModifiedFormatted" class="hidden sm:flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mr-2">
-                <ClockIcon class="w-3.5 h-3.5" />
-                Last saved: {{ lastModifiedFormatted }}
-              </div>
-
-              <!-- Import/Export -->
-              <button
-                @click="triggerImport"
-                class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
-                title="Import Profile"
-              >
-                <UploadIcon class="w-5 h-5" />
-              </button>
-              <input
-                ref="fileInput"
-                type="file"
-                accept=".json"
-                class="hidden"
-                @change="handleImport"
-              />
-              <button
-                @click="exportProfile"
-                class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
-                title="Export Profile"
-              >
-                <DownloadIcon class="w-5 h-5" />
-              </button>
-
-              <div class="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-
-              <!-- Close button -->
-              <button
-                @click="handleClose"
-                class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-300"
-                title="Close"
-              >
-                <XIcon class="w-5 h-5" />
-              </button>
+            <div>
+              <h3 id="profile-modal-title" class="serif">
+                {{ formData.fullName || 'Your Profile' }}
+              </h3>
+              <p class="modal-subtitle">AI context</p>
             </div>
           </div>
-
-          <!-- Content -->
-          <div class="flex-1 overflow-y-auto p-6">
-            <!-- Save Message -->
-            <div
-              v-if="saveMessage"
-              class="mb-6 p-4 rounded-lg flex items-center gap-3"
-              :class="{
-                'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200': saveMessage.type === 'success',
-                'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200': saveMessage.type === 'error'
-              }"
-            >
-              <CheckCircleIcon v-if="saveMessage.type === 'success'" class="w-5 h-5" />
-              <AlertCircleIcon v-else class="w-5 h-5" />
-              {{ saveMessage.text }}
-            </div>
-
-            <!-- Professional Experience -->
-            <section class="bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Professional Profile</h3>
-              <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                Write a comprehensive profile including your contact information, professional experience, skills, achievements, and career highlights.
-                This will be used by the AI to create personalized CVs and cover letters tailored to each job application.
-              </p>
-
-              <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden profile-editor-container">
-                <RichTextEditor v-model="formData.professionalExperience" />
-              </div>
-
-              <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <h4 class="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">💡 Tips for better AI results:</h4>
-                <ul class="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                  <li>• Start with contact info (name, email, phone, location, LinkedIn, portfolio)</li>
-                  <li>• Include specific achievements with numbers (e.g., "Increased sales by 40%")</li>
-                  <li>• List technical skills and tools you're proficient with</li>
-                  <li>• Mention leadership experience and team sizes</li>
-                  <li>• Include education, certifications, and awards</li>
-                  <li>• Describe key projects and their impact</li>
-                </ul>
-              </div>
-            </section>
-          </div>
-
-          <!-- Footer -->
-          <div class="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700">
-            <button
-              @click="resetForm"
-              :disabled="!hasUnsavedChanges"
-              class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <RotateCcwIcon class="w-4 h-4" />
-              Discard Changes
+          <div class="row" style="gap: 4px">
+            <button class="icon-btn" title="Import profile" @click="triggerImport">
+              <UploadIcon :size="16" />
             </button>
+            <input
+              ref="fileInput"
+              type="file"
+              accept=".json"
+              style="display: none"
+              @change="handleImport"
+            />
+            <button class="icon-btn" title="Export profile" @click="exportProfile">
+              <DownloadIcon :size="16" />
+            </button>
+            <button class="icon-btn" @click="handleClose" title="Close">
+              <XIcon :size="18" />
+            </button>
+          </div>
+        </div>
 
-            <div class="flex items-center gap-4">
-              <!-- Unsaved changes indicator -->
-              <span v-if="hasUnsavedChanges" class="text-sm text-orange-600 dark:text-orange-400 flex items-center gap-1">
-                <AlertCircleIcon class="w-4 h-4" />
-                Unsaved changes
-              </span>
+        <!-- Name field -->
+        <div class="name-field">
+          <label class="field-label" for="profile-name">Your name</label>
+          <input
+            id="profile-name"
+            v-model="formData.fullName"
+            type="text"
+            class="g-input"
+            placeholder="e.g. Mira Vale"
+            autocomplete="name"
+          />
+        </div>
 
-              <button
-                @click="saveProfile"
-                :disabled="!hasUnsavedChanges || isSaving"
-                class="flex items-center gap-2 px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <SaveIcon class="w-4 h-4" />
-                {{ isSaving ? 'Saving...' : 'Save Profile' }}
-              </button>
+        <!-- Editor label row -->
+        <div class="between editor-label-row">
+          <span class="editor-section-label">Everything Lycan should know about you</span>
+          <div style="position: relative">
+            <button
+              class="icon-btn icon-btn-sm"
+              :class="{ active: showHelp }"
+              type="button"
+              title="Writing tips"
+              @click.stop="showHelp = !showHelp"
+            >
+              <HelpCircleIcon :size="14" />
+            </button>
+            <!-- Help popover -->
+            <div v-if="showHelp" class="help-popover glass sheen" @click.stop>
+              <p class="help-title">What to include</p>
+              <ul>
+                <li>Roles you've held — titles, scope, dates</li>
+                <li>Metrics you're proud of</li>
+                <li>Tools, stacks &amp; methods</li>
+                <li>Vocabulary you use vs. avoid</li>
+                <li>Soft context — work style, what you're avoiding next</li>
+              </ul>
             </div>
           </div>
         </div>
+
+        <!-- Rich-text markdown editor -->
+        <ProfileEditor v-model="formData.professionalExperience" :last-modified="lastModified" />
+
+        <!-- Save message -->
+        <div v-if="saveMessage" class="save-msg" :class="saveMessage.type">
+          <CheckCircleIcon v-if="saveMessage.type === 'success'" :size="14" />
+          <AlertCircleIcon v-else :size="14" />
+          {{ saveMessage.text }}
+        </div>
+
+        <!-- Footer -->
+        <div class="between">
+          <span v-if="hasUnsavedChanges" class="pill warn">
+            <span class="dot"></span>Unsaved changes
+          </span>
+          <div v-else></div>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" @click="handleClose">Close</button>
+            <button
+              class="btn btn-primary"
+              :disabled="!hasUnsavedChanges || isSaving"
+              @click="saveProfile"
+            >
+              <SaveIcon :size="14" />
+              {{ isSaving ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+        </div>
       </div>
-    </Transition>
+    </div>
   </Teleport>
 </template>
 
@@ -147,78 +118,68 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUserProfileStore } from '../stores/userProfile'
-import RichTextEditor from './RichTextEditor.vue'
+import ProfileEditor from './ProfileEditor.vue'
 import {
   User as UserIcon,
   X as XIcon,
-  Clock as ClockIcon,
+  HelpCircle as HelpCircleIcon,
   Upload as UploadIcon,
   Download as DownloadIcon,
   Save as SaveIcon,
-  RotateCcw as RotateCcwIcon,
   CheckCircle as CheckCircleIcon,
   AlertCircle as AlertCircleIcon
 } from 'lucide-vue-next'
 
 const props = defineProps({
-  isOpen: {
-    type: Boolean,
-    default: false
-  }
+  isOpen: { type: Boolean, default: false }
 })
-
 const emit = defineEmits(['close'])
 
 const userProfileStore = useUserProfileStore()
-const { professionalExperience, lastModified } = storeToRefs(userProfileStore)
+const { professionalExperience, fullName, lastModified } = storeToRefs(userProfileStore)
 
 const isSaving = ref(false)
 const saveMessage = ref(null)
+const showHelp = ref(false)
 const fileInput = ref(null)
 
 const formData = ref({
+  fullName: '',
   professionalExperience: ''
 })
 
-// Sync form data when modal opens
+// Sync form when modal opens
 watch(
   () => props.isOpen,
   (open) => {
     if (open) {
       formData.value = {
+        fullName: fullName.value || '',
         professionalExperience: professionalExperience.value || ''
       }
       saveMessage.value = null
+      showHelp.value = false
     }
-  }
+  },
+  { immediate: true }
 )
 
-const lastModifiedFormatted = computed(() => {
-  const timestamp = lastModified.value
-  if (!timestamp) return null
-  return new Date(timestamp).toLocaleString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-})
-
 const hasUnsavedChanges = computed(() => {
-  const storeValue = professionalExperience.value || ''
-  const formValue = formData.value.professionalExperience || ''
-  return formValue !== storeValue
+  return (
+    (formData.value.fullName || '') !== (fullName.value || '') ||
+    (formData.value.professionalExperience || '') !== (professionalExperience.value || '')
+  )
 })
 
 const saveProfile = () => {
   isSaving.value = true
   try {
+    userProfileStore.updateContactInfo({ fullName: formData.value.fullName })
     userProfileStore.updateProfessionalExperience(formData.value.professionalExperience)
-    saveMessage.value = { type: 'success', text: 'Profile saved successfully!' }
+    saveMessage.value = { type: 'success', text: 'Profile saved!' }
     setTimeout(() => {
       saveMessage.value = null
-    }, 3000)
+    }, 2500)
   } catch (e) {
     saveMessage.value = { type: 'error', text: e.message }
   } finally {
@@ -226,15 +187,7 @@ const saveProfile = () => {
   }
 }
 
-const resetForm = () => {
-  if (!hasUnsavedChanges.value) return
-  if (confirm('Are you sure you want to discard your changes?')) {
-    formData.value = {
-      professionalExperience: professionalExperience.value || ''
-    }
-  }
-}
-
+// ── Import / Export ───────────────────────────────────────────────────────────
 const exportProfile = () => {
   const dataStr = userProfileStore.exportProfile()
   const blob = new Blob([dataStr], { type: 'application/json' })
@@ -248,108 +201,179 @@ const exportProfile = () => {
   URL.revokeObjectURL(url)
 }
 
-const triggerImport = () => {
-  fileInput.value?.click()
-}
+const triggerImport = () => fileInput.value?.click()
 
 const handleImport = (event) => {
   const file = event.target.files?.[0]
   if (!file) return
-
   const reader = new FileReader()
   reader.onload = (e) => {
     const success = userProfileStore.importProfile(e.target.result)
     if (success) {
       formData.value = {
+        fullName: fullName.value || '',
         professionalExperience: professionalExperience.value || ''
       }
-      saveMessage.value = { type: 'success', text: 'Profile imported successfully!' }
+      saveMessage.value = { type: 'success', text: 'Profile imported!' }
     } else {
-      saveMessage.value = { type: 'error', text: 'Failed to import profile. Invalid file format.' }
+      saveMessage.value = { type: 'error', text: 'Invalid profile file.' }
     }
     setTimeout(() => {
       saveMessage.value = null
-    }, 3000)
+    }, 2500)
   }
   reader.onerror = () => {
-    saveMessage.value = { type: 'error', text: 'Failed to read file. Please try again.' }
+    saveMessage.value = { type: 'error', text: 'Failed to read file.' }
     setTimeout(() => {
       saveMessage.value = null
-    }, 3000)
+    }, 2500)
   }
   reader.readAsText(file)
   event.target.value = ''
 }
 
-// Close via X button — warn if unsaved changes
+// Close handlers
 const handleClose = () => {
   if (hasUnsavedChanges.value) {
-    if (!confirm('You have unsaved changes. Are you sure you want to close?')) {
-      return
-    }
+    if (!confirm('You have unsaved changes. Close anyway?')) return
   }
   emit('close')
 }
 
-// Click outside — only close if no unsaved changes
 const handleBackdropClick = () => {
-  if (!hasUnsavedChanges.value) {
-    emit('close')
-  }
+  if (!hasUnsavedChanges.value) emit('close')
 }
 
-// Escape key — same guard as the X button
 const handleKeyDown = (e) => {
-  if (e.key === 'Escape' && props.isOpen) {
-    handleClose()
-  }
+  if (e.key === 'Escape' && props.isOpen) handleClose()
+  if (e.key === 'Escape' && showHelp.value) showHelp.value = false
+}
+
+const handleDocClick = () => {
+  showHelp.value = false
 }
 
 onMounted(() => {
   document.addEventListener('keydown', handleKeyDown)
+  document.addEventListener('click', handleDocClick)
 })
-
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown)
+  document.removeEventListener('click', handleDocClick)
 })
 </script>
 
 <style scoped>
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-.profile-editor-container {
-  max-height: 300px;
+.modal-profile {
+  max-width: 720px;
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
-}
-
-.profile-editor-container :deep(.border.rounded-md) {
-  border: none;
-  border-radius: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  gap: 18px;
   overflow: hidden;
 }
-
-.profile-editor-container :deep(.bg-gray-50.dark\:bg-gray-700) {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  flex-shrink: 0;
+.modal-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.profile-editor-container :deep(.ProseMirror) {
-  overflow-y: auto;
-  max-height: calc(300px - 44px);
-  min-height: 150px;
+/* Name field */
+.name-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Editor label row */
+.editor-label-row {
+  margin-bottom: -6px;
+}
+.editor-section-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Help popover */
+.help-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 240px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklch, var(--fg-0) 10%, transparent);
+  z-index: 200;
+}
+.help-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-1);
+  margin: 0 0 8px;
+}
+.help-popover ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.help-popover li {
+  font-size: 12px;
+  color: var(--fg-2);
+  line-height: 1.5;
+  padding-left: 12px;
+  position: relative;
+}
+.help-popover li::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+/* Save message */
+.save-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.save-msg.success {
+  background: color-mix(in oklch, var(--ok) 12%, transparent);
+  border: 1px solid color-mix(in oklch, var(--ok) 30%, transparent);
+  color: var(--ok);
+}
+.save-msg.error {
+  background: color-mix(in oklch, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in oklch, var(--danger) 30%, transparent);
+  color: var(--danger);
+}
+
+.icon-btn-sm {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 </style>
