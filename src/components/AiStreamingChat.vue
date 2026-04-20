@@ -96,6 +96,7 @@ const showModelDropdown = ref(false)
 // Edit / retry state
 const editingMessageId = ref(null)
 const editingContent = ref('')
+const editTextarea = ref(null)
 const hoveringMessageId = ref(null)
 const providerError = ref(null) // Provider-level error to show as banner
 
@@ -542,9 +543,22 @@ const handleEditStart = (msg) => {
   editingMessageId.value = msg.id
   editingContent.value = msg.content
   nextTick(() => {
-    const textarea = document.querySelector('.edit-message-textarea')
-    if (textarea) textarea.focus()
+    editTextarea.value?.focus()
   })
+}
+
+/**
+ * Keyboard handler for the inline edit textarea.
+ * Enter (without Shift) submits; Shift+Enter inserts a newline; Escape cancels.
+ */
+const handleEditKeydown = (e, msg) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    handleEditSave(msg)
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    handleEditCancel()
+  }
 }
 
 /**
@@ -861,11 +875,11 @@ const toggleModelDropdown = () => {
           <!-- Inline edit mode -->
           <div v-if="editingMessageId === msg.id" class="w-full max-w-[90%] ml-auto">
             <textarea
+              ref="editTextarea"
               v-model="editingContent"
               class="edit-message-textarea w-full rounded-lg border border-blue-400 dark:border-blue-500 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none min-h-[60px] max-h-48"
               style="field-sizing: content"
-              @keydown.enter.exact.prevent="handleEditSave(msg)"
-              @keydown.esc.prevent="handleEditCancel"
+              @keydown="handleEditKeydown($event, msg)"
             />
             <div class="flex gap-2 mt-1 justify-end">
               <button
