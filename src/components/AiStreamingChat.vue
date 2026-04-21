@@ -97,7 +97,6 @@ const showModelDropdown = ref(false)
 const editingMessageId = ref(null)
 const editingContent = ref('')
 const editTextarea = ref(null)
-const hoveringMessageId = ref(null)
 const providerError = ref(null) // Provider-level error to show as banner
 
 // Initialize tool handlers once
@@ -599,7 +598,7 @@ const handleEditSave = async (msg) => {
 }
 
 /**
- * Retry an assistant response: saves a branch, removes the AI turn, and re-sends.
+ * Retry an assistant response: removes the AI turn and re-sends without branching.
  */
 const handleRetry = async (assistantMsg) => {
   if (isBusy.value) return
@@ -617,7 +616,35 @@ const handleRetry = async (assistantMsg) => {
 
   const userMsg = msgs[userMsgIdx]
 
-  // Save current conversation as a branch
+  // Remove all AI messages for this turn (everything after the user message)
+  const firstAfterUser = msgs[userMsgIdx + 1]
+  if (!firstAfterUser) return
+  chatStore.truncateFromMessage(firstAfterUser.id)
+
+  await executeAiRequest(userMsg.metadata?.commandId || null)
+}
+
+/**
+ * Save a branch snapshot of the current conversation then retry.
+ * The branch allows the user to return to this exact conversation state.
+ */
+const handleBranchAndRetry = async (assistantMsg) => {
+  if (isBusy.value) return
+
+  const msgs = messages.value
+  const assistantIdx = msgs.findIndex((m) => m.id === assistantMsg.id)
+  if (assistantIdx === -1) return
+
+  // Find the preceding user message
+  let userMsgIdx = assistantIdx - 1
+  while (userMsgIdx >= 0 && msgs[userMsgIdx].role !== 'user') {
+    userMsgIdx--
+  }
+  if (userMsgIdx < 0) return
+
+  const userMsg = msgs[userMsgIdx]
+
+  // Save current conversation as a branch before discarding the AI turn
   chatStore.saveBranch()
 
   // Remove all AI messages for this turn (everything after the user message)
@@ -863,13 +890,7 @@ const toggleModelDropdown = () => {
       </div>
 
       <!-- Message list -->
-      <div
-        v-for="(msg, idx) in messages"
-        :key="msg.id || idx"
-        :class="getMessageSpacing(idx)"
-        @mouseenter="hoveringMessageId = msg.id"
-        @mouseleave="hoveringMessageId = null"
-      >
+      <div v-for="(msg, idx) in messages" :key="msg.id || idx" :class="getMessageSpacing(idx)">
         <!-- User message -->
         <div v-if="msg.role === 'user'" class="flex flex-col items-end gap-1">
           <!-- Inline edit mode -->
@@ -904,25 +925,26 @@ const toggleModelDropdown = () => {
 
           <!-- Normal display -->
           <div v-else class="relative group w-full flex flex-col items-end">
-            <div class="p-3 rounded-lg max-w-[90%] bg-blue-100 dark:bg-blue-900/30">
-              <div
-                class="text-sm break-words prose prose-sm dark:prose-invert max-w-none"
-                v-html="renderMarkdown(msg.content)"
-              ></div>
-              <div v-if="msg.metadata?.commandId" class="mt-1 text-xs text-gray-400">
-                /{{ msg.metadata.commandId }}
+            <div class="flex items-start gap-1 justify-end w-full">
+              <!-- Edit button (always visible as icon-only, disabled while busy) -->
+              <button
+                v-if="!isBusy"
+                @click="handleEditStart(msg)"
+                class="shrink-0 mt-1 p-1 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors"
+                title="Edit message"
+              >
+                <Pencil :size="13" />
+              </button>
+              <div class="p-3 rounded-lg max-w-[90%] bg-blue-100 dark:bg-blue-900/30">
+                <div
+                  class="text-sm break-words prose prose-sm dark:prose-invert max-w-none"
+                  v-html="renderMarkdown(msg.content)"
+                ></div>
+                <div v-if="msg.metadata?.commandId" class="mt-1 text-xs text-gray-400">
+                  /{{ msg.metadata.commandId }}
+                </div>
               </div>
             </div>
-            <!-- Edit button (on hover, not while busy) -->
-            <button
-              v-if="hoveringMessageId === msg.id && !isBusy"
-              @click="handleEditStart(msg)"
-              class="mt-1 flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-              title="Edit message"
-            >
-              <Pencil :size="11" />
-              Edit
-            </button>
           </div>
         </div>
 
@@ -1027,16 +1049,25 @@ const toggleModelDropdown = () => {
             ></div>
           </div>
 
-          <!-- Retry button (shown on hover for last assistant message, not while busy) -->
-          <button
-            v-if="hoveringMessageId === msg.id && !isBusy"
-            @click="handleRetry(msg)"
-            class="flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
-            title="Retry this response"
-          >
-            <RotateCcw :size="11" />
-            Retry
-          </button>
+          <!-- Action buttons row (only for messages with visible content, not tool-only) -->
+          <div v-if="!isToolOnlyMessage(msg) && !isBusy" class="flex items-center gap-1">
+            <!-- Retry: re-sends without branching -->
+            <button
+              @click="handleRetry(msg)"
+              class="p-1 text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 rounded transition-colors"
+              title="Retry this response"
+            >
+              <RotateCcw :size="13" />
+            </button>
+            <!-- Branch: save current state and retry -->
+            <button
+              @click="handleBranchAndRetry(msg)"
+              class="p-1 text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 rounded transition-colors"
+              title="Branch conversation and retry"
+            >
+              <GitBranch :size="13" />
+            </button>
+          </div>
         </div>
       </div>
 
