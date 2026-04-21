@@ -20,7 +20,7 @@ vi.mock('../../services/ai', () => ({
   performCvAiAction: vi.fn()
 }))
 
-import { useSettingsStore, AI_COMMAND_TYPES, WEB_SEARCH_COMMANDS } from '../settings'
+import { useSettingsStore } from '../settings'
 import { fetchAvailableModels, RECOMMENDED_MODELS } from '../../services/ai'
 import { createSettings } from '../../test/factories'
 
@@ -47,14 +47,6 @@ describe('settings store', () => {
       expect(store.summaryModel).toBe('openai/gpt-4o-mini')
     })
 
-    it('has default task models for all command types', () => {
-      expect(store.taskModels[AI_COMMAND_TYPES.JOB_ANALYSIS]).toBe('perplexity/sonar-pro')
-      expect(store.taskModels[AI_COMMAND_TYPES.MATCH_REPORT]).toBe('openai/gpt-4o-mini')
-      expect(store.taskModels[AI_COMMAND_TYPES.COMPANY_RESEARCH]).toBe('perplexity/sonar-pro')
-      expect(store.taskModels[AI_COMMAND_TYPES.CV_GENERATION]).toBe('openai/gpt-4o-mini')
-      expect(store.taskModels[AI_COMMAND_TYPES.COVER_LETTER]).toBe('openai/gpt-4o-mini')
-    })
-
     it('starts with empty customModels array', () => {
       expect(store.customModels).toEqual([])
     })
@@ -74,24 +66,13 @@ describe('settings store', () => {
       // Verify defaults are applied
       expect(freshStore.openRouterModel).toBeDefined()
     })
-
-    it('deep merges taskModels with defaults', () => {
-      const saved = { taskModels: { jobAnalysis: 'custom/model' } }
-      localStorage.setItem('app-lycan-ui-settings', JSON.stringify(saved))
-
-      const freshStore = useSettingsStore()
-      expect(freshStore.taskModels).toBeDefined()
-    })
   })
 
   describe('persistence', () => {
     it('persists to localStorage on state change', async () => {
       store.atsMode = true
       await nextTick()
-      expect(localStorage.setItem).toHaveBeenCalledWith(
-        'app-lycan-ui-settings',
-        expect.any(String)
-      )
+      expect(localStorage.setItem).toHaveBeenCalledWith('app-lycan-ui-settings', expect.any(String))
     })
   })
 
@@ -106,29 +87,6 @@ describe('settings store', () => {
       expect(store.atsMode).toBe(false)
       expect(store.openRouterKey).toBe('')
       expect(store.uppercaseName).toBe(true)
-    })
-  })
-
-  describe('getModelForTask', () => {
-    it('returns task-specific model', () => {
-      expect(store.getModelForTask(AI_COMMAND_TYPES.JOB_ANALYSIS)).toBe('perplexity/sonar-pro')
-    })
-
-    it('falls back to general model for unknown task type', () => {
-      expect(store.getModelForTask('unknown-type')).toBe('openai/gpt-4o-mini')
-    })
-  })
-
-  describe('setModelForTask', () => {
-    it('updates model for a valid task type', () => {
-      store.setModelForTask(AI_COMMAND_TYPES.JOB_ANALYSIS, 'custom/model')
-      expect(store.taskModels[AI_COMMAND_TYPES.JOB_ANALYSIS]).toBe('custom/model')
-    })
-
-    it('does not update for invalid task type', () => {
-      const before = { ...store.taskModels }
-      store.setModelForTask('invalid-type', 'custom/model')
-      expect(store.taskModels).toEqual(before)
     })
   })
 
@@ -173,19 +131,6 @@ describe('settings store', () => {
     it('does nothing when updating non-existent model', () => {
       store.updateCustomModel('non-existent', { name: 'Test' })
       expect(store.customModels).toHaveLength(0)
-    })
-  })
-
-  describe('commandRequiresWebSearch', () => {
-    it('returns true for web search commands', () => {
-      expect(store.commandRequiresWebSearch(AI_COMMAND_TYPES.JOB_ANALYSIS)).toBe(true)
-      expect(store.commandRequiresWebSearch(AI_COMMAND_TYPES.COMPANY_RESEARCH)).toBe(true)
-    })
-
-    it('returns false for non-web-search commands', () => {
-      expect(store.commandRequiresWebSearch(AI_COMMAND_TYPES.MATCH_REPORT)).toBe(false)
-      expect(store.commandRequiresWebSearch(AI_COMMAND_TYPES.CV_GENERATION)).toBe(false)
-      expect(store.commandRequiresWebSearch(AI_COMMAND_TYPES.COVER_LETTER)).toBe(false)
     })
   })
 
@@ -257,7 +202,9 @@ describe('settings store', () => {
     it('sets isLoadingModels during fetch', async () => {
       let resolvePromise
       vi.mocked(fetchAvailableModels).mockReturnValue(
-        new Promise(resolve => { resolvePromise = resolve })
+        new Promise((resolve) => {
+          resolvePromise = resolve
+        })
       )
 
       store.openRouterKey = 'test-api-key'
@@ -289,29 +236,6 @@ describe('settings store', () => {
       const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000
       store.modelsLastFetched = twoHoursAgo
       expect(store.getCacheAge()).toBe(2)
-    })
-  })
-
-  describe('AI_COMMAND_TYPES constant', () => {
-    it('has all expected command types', () => {
-      expect(AI_COMMAND_TYPES.JOB_ANALYSIS).toBe('jobAnalysis')
-      expect(AI_COMMAND_TYPES.MATCH_REPORT).toBe('matchReport')
-      expect(AI_COMMAND_TYPES.COMPANY_RESEARCH).toBe('companyResearch')
-      expect(AI_COMMAND_TYPES.CV_GENERATION).toBe('cvGeneration')
-      expect(AI_COMMAND_TYPES.COVER_LETTER).toBe('coverLetter')
-    })
-  })
-
-  describe('WEB_SEARCH_COMMANDS constant', () => {
-    it('includes job analysis and company research', () => {
-      expect(WEB_SEARCH_COMMANDS).toContain(AI_COMMAND_TYPES.JOB_ANALYSIS)
-      expect(WEB_SEARCH_COMMANDS).toContain(AI_COMMAND_TYPES.COMPANY_RESEARCH)
-    })
-
-    it('does not include non-web-search commands', () => {
-      expect(WEB_SEARCH_COMMANDS).not.toContain(AI_COMMAND_TYPES.MATCH_REPORT)
-      expect(WEB_SEARCH_COMMANDS).not.toContain(AI_COMMAND_TYPES.CV_GENERATION)
-      expect(WEB_SEARCH_COMMANDS).not.toContain(AI_COMMAND_TYPES.COVER_LETTER)
     })
   })
 

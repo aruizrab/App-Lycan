@@ -22,14 +22,14 @@ import { useSettingsStore } from '../stores/settings'
 import { useSettingsModal } from '../composables/useSettingsModal'
 import { useMarkdown } from '../composables/useMarkdown'
 import { chatWithTools, determineWebSearchCapability } from '../services/ai'
-import { AI_COMMANDS, parseCommand, getAllCommands } from '../services/aiCommands'
+import { parseCommand, getAllCommands, getInjectionPrompt } from '../services/aiCommands'
 import {
   getToolsForCommand,
   executeToolCall,
   setupToolHandlers,
   TOOL_DISPLAY_NAMES
 } from '../services/aiToolkit'
-import { loadGeneralPrompt, loadCommandPrompt } from '../services/promptLoader'
+import { loadGeneralPrompt } from '../services/promptLoader'
 import { useAppContext } from '../composables/useAppContext'
 import {
   estimateTokens,
@@ -304,16 +304,11 @@ const handleKeydown = (e) => {
 
 /**
  * Build the system prompt for the current request.
- * - Always includes the general prompt (static instructions only).
- * - If a command is active, also appends the command-specific prompt.
- * - App context is now injected ephemerally, not in system prompt.
+ * Slash commands no longer use a separate system prompt —
+ * the general prompt is always used and the injection prompt
+ * guides the main agent via the user message.
  */
-const buildSystemPrompt = async (commandId = null) => {
-  // No longer pass context to prompt - it will be injected ephemerally
-  if (commandId && AI_COMMANDS[commandId]?.promptFile) {
-    return loadCommandPrompt(AI_COMMANDS[commandId].promptFile)
-  }
-
+const buildSystemPrompt = async () => {
   return loadGeneralPrompt()
 }
 
@@ -334,8 +329,8 @@ const handleSend = async () => {
   })
 
   // Determine user message text
-  const cmd = commandId ? AI_COMMANDS[commandId] : null
-  const displayText = cmd ? cmd.buildUserMessage(content) : text
+  // For slash commands: inject the agent-guidance prompt; otherwise use raw text
+  const displayText = commandId ? getInjectionPrompt(commandId, content) : text
 
   // Add user message immediately
   chatStore.addMessage({
@@ -390,8 +385,8 @@ const handleSend = async () => {
       settingsStore.openRouterModel,
       Array.from(availableModelIds.value)
     )
-    const model =
-      commandId && cmd?.commandType ? settingsStore.getModelForTask(cmd.commandType) : sessionModel
+    // Slash commands use the session model (main agent routes to specialized agents via summon_agent)
+    const model = sessionModel
 
     if (!apiKey) {
       throw new Error('OpenRouter API key is not configured. Please set it in Settings.')
@@ -400,8 +395,8 @@ const handleSend = async () => {
       throw new Error('No model selected. Please configure a model in Settings.')
     }
 
-    // Build system prompt (async — loads from markdown files)
-    const systemPrompt = await buildSystemPrompt(commandId)
+    // Build system prompt (async — loads from markdown file)
+    const systemPrompt = await buildSystemPrompt()
 
     // Pass ephemeral context that will be injected before last user message
     // This gives maximum attention weight and stays fresh as user navigates

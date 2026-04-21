@@ -1,13 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import {
-  AI_COMMANDS,
-  isUrl,
-  parseCommand,
-  getCommand,
-  getAllCommands
-} from '../aiCommands'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
+import { isUrl, parseCommand, getAllCommands, getInjectionPrompt } from '../aiCommands'
 
 describe('aiCommands', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
   // ─── isUrl ──────────────────────────────────────────────
   describe('isUrl', () => {
     it('recognizes a full https URL', () => {
@@ -52,91 +51,6 @@ describe('aiCommands', () => {
     })
   })
 
-  // ─── AI_COMMANDS ────────────────────────────────────────
-  describe('AI_COMMANDS', () => {
-    it('defines analyze, match, and research commands', () => {
-      expect(AI_COMMANDS.analyze).toBeDefined()
-      expect(AI_COMMANDS.match).toBeDefined()
-      expect(AI_COMMANDS.research).toBeDefined()
-    })
-
-    it('each command has required fields', () => {
-      for (const cmd of Object.values(AI_COMMANDS)) {
-        expect(cmd).toHaveProperty('id')
-        expect(cmd).toHaveProperty('name')
-        expect(cmd).toHaveProperty('promptFile')
-        expect(cmd).toHaveProperty('promptType')
-        expect(cmd).toHaveProperty('commandType')
-        expect(cmd).toHaveProperty('buildUserMessage')
-      }
-    })
-
-    describe('analyze.buildUserMessage', () => {
-      it('wraps content when provided', () => {
-        const msg = AI_COMMANDS.analyze.buildUserMessage('some job text')
-        expect(msg).toContain('some job text')
-        expect(msg).toContain('Analyze')
-      })
-
-      it('returns generic message when no content', () => {
-        const msg = AI_COMMANDS.analyze.buildUserMessage('')
-        expect(msg).toContain('workspace')
-      })
-
-      it('returns generic message when content is null', () => {
-        const msg = AI_COMMANDS.analyze.buildUserMessage(null)
-        expect(msg).toContain('workspace')
-      })
-
-      it('includes URL content when URL provided', () => {
-        const msg = AI_COMMANDS.analyze.buildUserMessage('https://example.com/job')
-        expect(msg).toContain('https://example.com/job')
-      })
-    })
-
-    describe('analyze.requiresWebSearch', () => {
-      it('returns true for URL input', () => {
-        expect(AI_COMMANDS.analyze.requiresWebSearch('https://example.com/job')).toBe(true)
-      })
-
-      it('returns false for plain text input', () => {
-        expect(AI_COMMANDS.analyze.requiresWebSearch('Software Engineer role')).toBe(false)
-      })
-    })
-
-    describe('match.buildUserMessage', () => {
-      it('returns a fixed message', () => {
-        const msg = AI_COMMANDS.match.buildUserMessage()
-        expect(msg).toContain('match report')
-      })
-    })
-
-    describe('research.buildUserMessage', () => {
-      it('wraps content when provided', () => {
-        const msg = AI_COMMANDS.research.buildUserMessage('Acme Corp')
-        expect(msg).toContain('Acme Corp')
-      })
-
-      it('returns generic message when no content', () => {
-        const msg = AI_COMMANDS.research.buildUserMessage('')
-        expect(msg).toContain('workspace')
-      })
-
-      it('returns generic message when content is null', () => {
-        const msg = AI_COMMANDS.research.buildUserMessage(null)
-        expect(msg).toContain('workspace')
-      })
-    })
-
-    it('research always requires web search', () => {
-      expect(AI_COMMANDS.research.requiresWebSearch).toBe(true)
-    })
-
-    it('match never requires web search', () => {
-      expect(AI_COMMANDS.match.requiresWebSearch).toBe(false)
-    })
-  })
-
   // ─── parseCommand ───────────────────────────────────────
   describe('parseCommand', () => {
     it('parses /analyze with content', () => {
@@ -155,6 +69,18 @@ describe('aiCommands', () => {
       const result = parseCommand('/research Acme Corp Inc')
       expect(result.commandId).toBe('research')
       expect(result.content).toBe('Acme Corp Inc')
+    })
+
+    it('parses /cv without content', () => {
+      const result = parseCommand('/cv')
+      expect(result.commandId).toBe('cv')
+      expect(result.content).toBe('')
+    })
+
+    it('parses /cover without content', () => {
+      const result = parseCommand('/cover')
+      expect(result.commandId).toBe('cover')
+      expect(result.content).toBe('')
     })
 
     it('is case-insensitive for command names', () => {
@@ -192,44 +118,57 @@ describe('aiCommands', () => {
     })
   })
 
-  // ─── getCommand ─────────────────────────────────────────
-  describe('getCommand', () => {
-    it('returns command definition for valid id', () => {
-      const cmd = getCommand('analyze')
-      expect(cmd).toBe(AI_COMMANDS.analyze)
-    })
-
-    it('returns null for invalid id', () => {
-      expect(getCommand('nonexistent')).toBeNull()
-    })
-
-    it('returns null for undefined', () => {
-      expect(getCommand(undefined)).toBeNull()
-    })
-
-    it('returns null for empty string', () => {
-      expect(getCommand('')).toBeNull()
-    })
-
-    it('returns null for null', () => {
-      expect(getCommand(null)).toBeNull()
-    })
-  })
-
   // ─── getAllCommands ─────────────────────────────────────
   describe('getAllCommands', () => {
-    it('returns an array of all commands', () => {
+    it('returns an array of commands', () => {
       const commands = getAllCommands()
       expect(Array.isArray(commands)).toBe(true)
-      expect(commands.length).toBe(Object.keys(AI_COMMANDS).length)
+      expect(commands.length).toBeGreaterThan(0)
     })
 
-    it('contains every defined command', () => {
+    it('contains the built-in slash commands', () => {
       const commands = getAllCommands()
-      const ids = commands.map(c => c.id)
+      const ids = commands.map((c) => c.id)
       expect(ids).toContain('analyze')
       expect(ids).toContain('match')
       expect(ids).toContain('research')
+      expect(ids).toContain('cv')
+      expect(ids).toContain('cover')
+    })
+
+    it('each command has id, name, and description', () => {
+      const commands = getAllCommands()
+      for (const cmd of commands) {
+        expect(cmd).toHaveProperty('id')
+        expect(cmd).toHaveProperty('name')
+        expect(cmd).toHaveProperty('description')
+        expect(typeof cmd.id).toBe('string')
+        expect(typeof cmd.name).toBe('string')
+      }
+    })
+  })
+
+  // ─── getInjectionPrompt ─────────────────────────────────
+  describe('getInjectionPrompt', () => {
+    it('returns a non-empty string for a known command', () => {
+      const prompt = getInjectionPrompt('analyze', '')
+      expect(typeof prompt).toBe('string')
+      expect(prompt.length).toBeGreaterThan(0)
+    })
+
+    it('appends extra content when provided', () => {
+      const prompt = getInjectionPrompt('analyze', 'https://example.com/job')
+      expect(prompt).toContain('https://example.com/job')
+    })
+
+    it('returns empty string for an unknown command with no content', () => {
+      const prompt = getInjectionPrompt('nonexistent', '')
+      expect(prompt).toBe('')
+    })
+
+    it('returns content for unknown command when content is provided', () => {
+      const prompt = getInjectionPrompt('nonexistent', 'some content')
+      expect(prompt).toContain('some content')
     })
   })
 })
