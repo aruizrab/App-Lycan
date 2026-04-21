@@ -447,7 +447,10 @@ const executeAiRequest = async (commandId = null) => {
         chatStore.updateStreamingContent(accumulated)
       },
       onReasoning: (chunk, accumulated) => {
-        chatStore.updateStreamingReasoning(accumulated)
+        // Prepend reasoning accumulated from completed intermediate rounds
+        chatStore.updateStreamingReasoning(
+          accumulatedReasoning ? accumulatedReasoning + '\n\n' + accumulated : accumulated
+        )
       },
       onToolCall: (toolCall) => {
         chatStore.addStreamingToolCall(toolCall)
@@ -481,14 +484,19 @@ const executeAiRequest = async (commandId = null) => {
             }
           })
         } else {
-          // Intermediate round: save reasoning and reset streaming state for the next round
-          // without committing a message, so all rounds appear as one turn in the chat.
+          // Intermediate round: keep tool calls and reasoning visible in the streaming
+          // display so the user sees the agent's full work throughout the turn.
+          // Only reset the text content so the next round's reply starts fresh.
+          if (roundData.toolCalls?.length) {
+            for (const tc of roundData.toolCalls) {
+              chatStore.addStreamingToolCall(tc)
+            }
+          }
           if (roundData.reasoning) {
             if (accumulatedReasoning) accumulatedReasoning += '\n\n'
             accumulatedReasoning += roundData.reasoning
           }
-          chatStore.clearStreaming()
-          chatStore.startStreaming()
+          chatStore.updateStreamingContent('')
         }
       },
       executeToolCall: async (toolCall) => {
@@ -1328,10 +1336,10 @@ const toggleModelDropdown = () => {
               @click="showBranchDropdown = !showBranchDropdown"
               aria-label="View conversation branches"
               class="flex items-center gap-1 px-1.5 py-0.5 rounded border border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
-              :title="`${currentBranches.length} saved ${currentBranches.length === 1 ? 'branch' : 'branches'}`"
+              :title="`${currentBranches.length + 1} conversation paths`"
             >
               <GitBranch :size="11" />
-              <span class="text-[10px] font-medium">{{ currentBranches.length }}</span>
+              <span class="text-[10px] font-medium">{{ currentBranches.length + 1 }}</span>
             </button>
             <!-- Branch dropdown -->
             <div
@@ -1341,9 +1349,24 @@ const toggleModelDropdown = () => {
               <div
                 class="px-3 py-1.5 text-[10px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border-b border-purple-200 dark:border-purple-700 uppercase tracking-wide"
               >
-                Saved Branches
+                Conversation paths
               </div>
               <div class="max-h-48 overflow-y-auto">
+                <!-- Current active path (always first, non-interactive) -->
+                <div
+                  class="w-full px-3 py-2 text-xs flex items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-700 bg-purple-50 dark:bg-purple-900/20"
+                >
+                  <span
+                    class="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 font-medium"
+                  >
+                    <GitBranch :size="11" class="text-purple-500 shrink-0" />
+                    Current path
+                  </span>
+                  <span class="text-[10px] text-gray-400 shrink-0">
+                    {{ messages.length }} msg{{ messages.length !== 1 ? 's' : '' }}
+                  </span>
+                </div>
+                <!-- Saved branches -->
                 <button
                   v-for="(branch, bIdx) in currentBranches"
                   :key="branch.id"
@@ -1352,11 +1375,11 @@ const toggleModelDropdown = () => {
                     showBranchDropdown = false
                   "
                   class="w-full px-3 py-2 text-left text-xs hover:bg-purple-50 dark:hover:bg-purple-900/20 text-gray-700 dark:text-gray-300 flex items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-700 last:border-0"
-                  :title="`Switch to branch ${bIdx + 1}`"
+                  :title="`Switch to saved path ${bIdx + 1}`"
                 >
                   <span class="flex items-center gap-1.5">
-                    <GitBranch :size="11" class="text-purple-500 shrink-0" />
-                    Branch {{ bIdx + 1 }}
+                    <GitBranch :size="11" class="text-purple-400 shrink-0" />
+                    Saved path {{ bIdx + 1 }}
                   </span>
                   <span class="text-[10px] text-gray-400 shrink-0">
                     {{ branch.messages.length }} msg{{ branch.messages.length !== 1 ? 's' : '' }}
