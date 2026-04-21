@@ -5,7 +5,6 @@ import {
   Send,
   ChevronDown,
   ChevronRight,
-  ChevronLeft,
   Sparkles,
   MessageSquare,
   Monitor,
@@ -98,6 +97,7 @@ const editingMessageId = ref(null)
 const editingContent = ref('')
 const editTextarea = ref(null)
 const providerError = ref(null) // Provider-level error to show as banner
+const showBranchDropdown = ref(false) // Branch picker dropdown in footer
 
 // Initialize tool handlers once
 onMounted(() => {
@@ -434,6 +434,11 @@ const executeAiRequest = async (commandId = null) => {
       toolCount: tools.length
     })
 
+    // Accumulate tool calls and reasoning across all intermediate rounds so the
+    // entire AI turn (tool calls + final reply) is committed as a single message.
+    const accumulatedToolCalls = []
+    let accumulatedReasoning = ''
+
     // Stream the response with tool support
     await chatWithTools(apiKey, finalModel, apiMessages, {
       tools,
@@ -455,17 +460,34 @@ const executeAiRequest = async (commandId = null) => {
         chatStore.updateToolOutput(toolCallId, chunk, accumulated)
       },
       onRoundComplete: (roundData) => {
-        chatStore.finishStreaming({
-          content: roundData.content,
-          reasoning: roundData.reasoning,
-          toolCalls: roundData.toolCalls,
-          metadata: {
-            model: finalModel,
-            commandId,
-            hasWebSearch: determineWebSearchCapability(model)
+        // Collect tool calls from every round into a single running list
+        if (roundData.toolCalls?.length) {
+          accumulatedToolCalls.push(...roundData.toolCalls)
+        }
+
+        if (roundData.isLastRound) {
+          // Merge reasoning from all intermediate rounds with the final round's reasoning
+          const mergedReasoning = [accumulatedReasoning, roundData.reasoning]
+            .filter(Boolean)
+            .join('\n\n')
+          chatStore.finishStreaming({
+            content: roundData.content,
+            reasoning: mergedReasoning || null,
+            toolCalls: accumulatedToolCalls.length > 0 ? accumulatedToolCalls : null,
+            metadata: {
+              model: finalModel,
+              commandId,
+              hasWebSearch: determineWebSearchCapability(model)
+            }
+          })
+        } else {
+          // Intermediate round: save reasoning and reset streaming state for the next round
+          // without committing a message, so all rounds appear as one turn in the chat.
+          if (roundData.reasoning) {
+            if (accumulatedReasoning) accumulatedReasoning += '\n\n'
+            accumulatedReasoning += roundData.reasoning
           }
-        })
-        if (!roundData.isLastRound) {
+          chatStore.clearStreaming()
           chatStore.startStreaming()
         }
       },
@@ -625,34 +647,26 @@ const handleRetry = async (assistantMsg) => {
 }
 
 /**
- * Save a branch snapshot of the current conversation then retry.
- * The branch allows the user to return to this exact conversation state.
+ * Save a branch snapshot of the current conversation at this point.
+ * Truncates everything after the selected assistant message so the user
+ * can continue the conversation in a new direction by typing a new message.
+ * The saved branch can be switched back to at any time via the branch dropdown.
  */
-const handleBranchAndRetry = async (assistantMsg) => {
+const handleBranch = (assistantMsg) => {
   if (isBusy.value) return
 
   const msgs = messages.value
   const assistantIdx = msgs.findIndex((m) => m.id === assistantMsg.id)
   if (assistantIdx === -1) return
 
-  // Find the preceding user message
-  let userMsgIdx = assistantIdx - 1
-  while (userMsgIdx >= 0 && msgs[userMsgIdx].role !== 'user') {
-    userMsgIdx--
-  }
-  if (userMsgIdx < 0) return
-
-  const userMsg = msgs[userMsgIdx]
-
-  // Save current conversation as a branch before discarding the AI turn
+  // Save current conversation state before modifying
   chatStore.saveBranch()
 
-  // Remove all AI messages for this turn (everything after the user message)
-  const firstAfterUser = msgs[userMsgIdx + 1]
-  if (!firstAfterUser) return
-  chatStore.truncateFromMessage(firstAfterUser.id)
-
-  await executeAiRequest(userMsg.metadata?.commandId || null)
+  // Remove any messages that come after this assistant message
+  const nextMsg = msgs[assistantIdx + 1]
+  if (nextMsg) {
+    chatStore.truncateFromMessage(nextMsg.id)
+  }
 }
 
 /**
@@ -772,6 +786,8 @@ const toggleModelDropdown = () => {
   <div class="flex flex-col h-full bg-white dark:bg-gray-800">
     <!-- Overlay for model dropdown -->
     <div v-if="showModelDropdown" @click="closeModelDropdown" class="fixed inset-0 z-40" />
+    <!-- Overlay for branch dropdown -->
+    <div v-if="showBranchDropdown" @click="showBranchDropdown = false" class="fixed inset-0 z-40" />
 
     <!-- Unified Header -->
     <div
@@ -1059,39 +1075,15 @@ const toggleModelDropdown = () => {
             >
               <RotateCcw :size="13" />
             </button>
-            <!-- Branch: save current state and retry -->
+            <!-- Branch: save current state at this point, user continues in new direction -->
             <button
-              @click="handleBranchAndRetry(msg)"
+              @click="handleBranch(msg)"
               class="p-1 text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 rounded transition-colors"
-              title="Branch conversation and retry"
+              title="Branch conversation from here"
             >
               <GitBranch :size="13" />
             </button>
           </div>
-        </div>
-      </div>
-
-      <!-- Branch navigation bar -->
-      <div
-        v-if="currentBranches.length > 0 && !isBusy"
-        class="mt-4 flex items-center gap-2 p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800"
-      >
-        <GitBranch :size="14" class="text-purple-600 dark:text-purple-400 shrink-0" />
-        <span class="text-xs text-purple-700 dark:text-purple-300 font-medium shrink-0">
-          {{ currentBranches.length }} alternative
-          {{ currentBranches.length === 1 ? 'branch' : 'branches' }}
-        </span>
-        <div class="flex gap-1 flex-wrap">
-          <button
-            v-for="(branch, bIdx) in currentBranches"
-            :key="branch.id"
-            @click="handleSwitchBranch(branch.id)"
-            class="px-2 py-0.5 text-xs rounded border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-800/40 transition-colors"
-            :title="`Switch to branch ${bIdx + 1} (${branch.messages.length} messages)`"
-          >
-            <ChevronLeft :size="10" class="inline" />
-            Branch {{ bIdx + 1 }}
-          </button>
         </div>
       </div>
 
@@ -1330,6 +1322,48 @@ const toggleModelDropdown = () => {
           >
             · {{ contextPercentage }}%
           </span>
+          <!-- Branch picker (shown only when at least one branch exists) -->
+          <div v-if="currentBranches.length > 0" class="relative ml-1">
+            <button
+              @click="showBranchDropdown = !showBranchDropdown"
+              class="flex items-center gap-1 px-1.5 py-0.5 rounded border border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+              :title="`${currentBranches.length} saved ${currentBranches.length === 1 ? 'branch' : 'branches'}`"
+            >
+              <GitBranch :size="11" />
+              <span class="text-[10px] font-medium">{{ currentBranches.length }}</span>
+            </button>
+            <!-- Branch dropdown -->
+            <div
+              v-if="showBranchDropdown"
+              class="absolute bottom-full left-0 mb-1 w-56 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-700 rounded-lg shadow-xl z-50 overflow-hidden"
+            >
+              <div
+                class="px-3 py-1.5 text-[10px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border-b border-purple-200 dark:border-purple-700 uppercase tracking-wide"
+              >
+                Saved Branches
+              </div>
+              <div class="max-h-48 overflow-y-auto">
+                <button
+                  v-for="(branch, bIdx) in currentBranches"
+                  :key="branch.id"
+                  @click="
+                    handleSwitchBranch(branch.id)
+                    showBranchDropdown = false
+                  "
+                  class="w-full px-3 py-2 text-left text-xs hover:bg-purple-50 dark:hover:bg-purple-900/20 text-gray-700 dark:text-gray-300 flex items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-700 last:border-0"
+                  :title="`Switch to branch ${bIdx + 1}`"
+                >
+                  <span class="flex items-center gap-1.5">
+                    <GitBranch :size="11" class="text-purple-500 shrink-0" />
+                    Branch {{ bIdx + 1 }}
+                  </span>
+                  <span class="text-[10px] text-gray-400 shrink-0">
+                    {{ branch.messages.length }} msg{{ branch.messages.length !== 1 ? 's' : '' }}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
         <div>Press / for commands</div>
       </div>
