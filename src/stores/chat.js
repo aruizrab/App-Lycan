@@ -57,7 +57,8 @@ export const useChatStore = defineStore('chat', () => {
           ...session,
           messages: Array.isArray(session.messages) ? session.messages : [],
           context: session.context && typeof session.context === 'object' ? session.context : {},
-          model: inferSessionModel(session)
+          model: inferSessionModel(session),
+          branches: Array.isArray(session.branches) ? session.branches : []
         }))
         currentSessionId.value = data.currentSessionId || null
       }
@@ -117,7 +118,8 @@ export const useChatStore = defineStore('chat', () => {
       messages: [],
       context: options.context || {},
       model: normalizeModelId(options.model) || DEFAULT_SESSION_MODEL,
-      tokenUsage: null // { promptTokens, completionTokens, totalTokens } — set after first API response
+      tokenUsage: null, // { promptTokens, completionTokens, totalTokens } — set after first API response
+      branches: [] // Saved conversation snapshots created when editing/retrying
     }
     sessions.value.unshift(session) // Add to beginning
     currentSessionId.value = session.id
@@ -271,6 +273,75 @@ export const useChatStore = defineStore('chat', () => {
       lastMessage.content = content
     }
   }
+
+  /**
+   * Truncate all messages from the given message ID (inclusive) to the end.
+   * @param {string} messageId - The ID of the message to truncate from
+   * @returns {number} The index that was truncated from, or -1 if not found
+   */
+  const truncateFromMessage = (messageId) => {
+    if (!currentSession.value) return -1
+    const index = currentSession.value.messages.findIndex((m) => m.id === messageId)
+    if (index === -1) return -1
+    currentSession.value.messages = currentSession.value.messages.slice(0, index)
+    currentSession.value.updatedAt = Date.now()
+    return index
+  }
+
+  /**
+   * Save the current message list as a branch snapshot.
+   * Branches allow the user to switch back to previous conversation paths.
+   * @returns {Object|null} The saved branch object, or null if no session exists
+   */
+  const saveBranch = () => {
+    if (!currentSession.value) return null
+    if (!Array.isArray(currentSession.value.branches)) {
+      currentSession.value.branches = []
+    }
+    const branch = {
+      id: crypto.randomUUID(),
+      messages: JSON.parse(JSON.stringify(currentSession.value.messages)),
+      createdAt: Date.now()
+    }
+    currentSession.value.branches.push(branch)
+    currentSession.value.updatedAt = Date.now()
+    return branch
+  }
+
+  /**
+   * Switch to a saved branch by ID.
+   * The current messages are saved as a new branch before switching.
+   * @param {string} branchId - The branch ID to restore
+   */
+  const switchBranch = (branchId) => {
+    if (!currentSession.value) return
+    if (!Array.isArray(currentSession.value.branches)) return
+    const branchIndex = currentSession.value.branches.findIndex((b) => b.id === branchId)
+    if (branchIndex === -1) return
+
+    const targetBranch = currentSession.value.branches[branchIndex]
+
+    // Save current messages as a new branch in place of the one being restored
+    const currentBranch = {
+      id: crypto.randomUUID(),
+      messages: JSON.parse(JSON.stringify(currentSession.value.messages)),
+      createdAt: Date.now()
+    }
+
+    // Restore the target branch's messages
+    currentSession.value.messages = JSON.parse(JSON.stringify(targetBranch.messages))
+
+    // Replace the target branch slot with current (swap them)
+    currentSession.value.branches.splice(branchIndex, 1, currentBranch)
+    currentSession.value.updatedAt = Date.now()
+  }
+
+  /**
+   * Branches for the current session
+   */
+  const currentBranches = computed(() => {
+    return currentSession.value?.branches || []
+  })
 
   /**
    * Get messages formatted for OpenRouter API
@@ -515,6 +586,10 @@ export const useChatStore = defineStore('chat', () => {
     // Message management
     addMessage,
     updateLastAssistantMessage,
+    truncateFromMessage,
+    saveBranch,
+    switchBranch,
+    currentBranches,
     getApiMessages,
 
     // Streaming
