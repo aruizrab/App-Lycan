@@ -14,12 +14,12 @@
  *                 edit_workspace_context, edit_user_profile
  *   DELETION    – delete_workspace, delete_cv, delete_cover_letter,
  *                 delete_workspace_context
- *   UTILITY     – job_analysis, generate_match_report, research_company
+ *   AGENTS      – list_agents, summon_agent
  */
 
 import * as data from './dataAccess'
-import { useSystemPromptsStore, PROMPT_TYPES } from '../stores/systemPrompts'
-import { useSettingsStore, AI_COMMAND_TYPES } from '../stores/settings'
+import { useAgentsStore } from '../stores/agents'
+import { useSettingsStore } from '../stores/settings'
 import { streamAndCollect } from './ai'
 import { loadAgentPrompt } from './promptLoader'
 import cvSchema from '../schemas/cvSchema.json'
@@ -55,15 +55,9 @@ export const TOOL_DISPLAY_NAMES = {
   delete_cv: 'Deleting CV',
   delete_cover_letter: 'Deleting cover letter',
   delete_workspace_context: 'Deleting context',
-  // Utility
-  job_analysis: 'Analyzing job posting',
-  generate_match_report: 'Generating match report',
-  research_company: 'Researching company',
-  // System Prompts
-  list_system_prompts: 'Listing system prompts',
-  get_system_prompt: 'Reading system prompt',
-  // Sub-Agent
-  sub_agent: 'Running sub-agent'
+  // Agents
+  list_agents: 'Listing agents',
+  summon_agent: 'Running agent'
 }
 
 // =========================================================
@@ -430,189 +424,47 @@ export const AI_TOOLS = [
     }
   },
 
-  // ── UTILITY ─────────────────────────────────────────────
+  // ── AGENTS ──────────────────────────────────────────────
   {
     type: 'function',
     function: {
-      name: 'job_analysis',
+      name: 'list_agents',
       description:
-        'Invoke a specialized agent to analyze a job posting stored in the workspace context and save the analysis result. The job posting MUST already be stored in the workspace context before calling this tool.',
-      parameters: {
-        type: 'object',
-        properties: {
-          workspace_name: {
-            type: 'string',
-            description:
-              'Name of the workspace containing the job posting and where the analysis will be stored.'
-          },
-          source_context_key: {
-            type: 'string',
-            description:
-              'The workspace context key where the job posting text is stored (e.g. "job_posting").'
-          },
-          target_context_key: {
-            type: 'string',
-            description:
-              'The workspace context key where the resulting analysis will be stored (e.g. "job_analysis").'
-          },
-          comment: {
-            type: 'string',
-            description:
-              'Optional. Additional instructions or feedback for iterating on an existing analysis.'
-          }
-        },
-        required: ['workspace_name', 'source_context_key', 'target_context_key']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'generate_match_report',
-      description:
-        'Generate a match report comparing the user profile against a job analysis. Uses a specialized AI agent to perform the analysis. Automatically fetches job context and user profile, and stores the result in the target workspace context key.',
-      parameters: {
-        type: 'object',
-        properties: {
-          workspace_name: {
-            type: 'string',
-            description: 'Name of the workspace containing the job analysis.'
-          },
-          source_context_key: {
-            type: 'string',
-            description:
-              'The workspace context key where the job analysis is stored (e.g. "job_analysis").'
-          },
-          target_context_key: {
-            type: 'string',
-            description:
-              'The workspace context key where the match report will be stored (e.g. "match_report").'
-          },
-          comment: {
-            type: 'string',
-            description:
-              'Optional. Additional instructions or feedback for iterating on an existing match report.'
-          }
-        },
-        required: ['workspace_name', 'source_context_key', 'target_context_key']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'research_company',
-      description:
-        'Invoke a specialized agent to research a company using web search and save the resulting report to the workspace context.',
-      parameters: {
-        type: 'object',
-        properties: {
-          company_info: {
-            type: 'string',
-            description: 'Company name, URL, or any relevant context to research.'
-          },
-          workspace_name: {
-            type: 'string',
-            description: 'Name of the workspace where the research report will be stored.'
-          },
-          target_context_key: {
-            type: 'string',
-            description:
-              'The workspace context key where the research report will be saved (e.g. "company_research").'
-          },
-          current_research: {
-            type: 'string',
-            description: 'Optional. Existing research content to iterate on.'
-          },
-          iteration_prompt: {
-            type: 'string',
-            description:
-              'Optional. Specific refinement instructions when iterating on existing research.'
-          }
-        },
-        required: ['company_info', 'workspace_name', 'target_context_key']
-      }
-    }
-  },
-
-  // ── SYSTEM PROMPTS ───────────────────────────────────────
-  {
-    type: 'function',
-    function: {
-      name: 'list_system_prompts',
-      description:
-        "List all system prompt categories (predefined and user-created). Returns each category's key, display name, whether it is predefined, and the name of the currently active prompt.",
+        "List all available AI agents (built-in and custom). Returns each agent's id, name, and description. Call this before summon_agent to discover what agents are available and what inputs they expect.",
       parameters: { type: 'object', properties: {} }
     }
   },
   {
     type: 'function',
     function: {
-      name: 'get_system_prompt',
+      name: 'summon_agent',
       description:
-        'Get the full text of the currently active system prompt for a given category key.',
+        'Invoke a specialized AI agent by ID. The agent runs its own LLM call with a dedicated system prompt and returns the result. Use list_agents first to discover available agents and read their descriptions to understand what input to pass. The agent description specifies what context/input it expects and what it produces.',
       parameters: {
         type: 'object',
         properties: {
-          key: {
+          agentId: {
             type: 'string',
             description:
-              'The system prompt category key (e.g. "jobAnalysis", "matchReport", or a custom key like "technical-review").'
-          }
-        },
-        required: ['key']
-      }
-    }
-  },
-
-  // ── SUB-AGENT ────────────────────────────────────────────
-  {
-    type: 'function',
-    function: {
-      name: 'sub_agent',
-      description:
-        'Spawn an independent AI sub-agent to perform a task. The sub-agent runs a separate LLM call with its own system prompt and context, and returns the result. Use this for complex multi-step tasks, tasks requiring different models or web search, or tasks with specialized system prompts.',
-      parameters: {
-        type: 'object',
-        properties: {
-          prompt: {
+              'The ID of the agent to invoke (e.g. "job-analysis", "match-report"). Use list_agents to see available IDs.'
+          },
+          input: {
             type: 'string',
             description:
-              'The user-message instruction for the sub-agent. This is the main task or question.'
-          },
-          system_prompt: {
-            type: 'string',
-            description:
-              'Either a system prompt category key (use list_system_prompts to discover keys) or literal text. If a known category key is provided, the active prompt for that category is loaded. Otherwise the text is used directly as the system prompt.'
-          },
-          model: {
-            type: 'string',
-            description:
-              'Optional. Model ID to use (e.g. "openai/gpt-4o"). Defaults to the user\'s configured default model. Append ":online" to enable web search (e.g. "perplexity/sonar-pro:online").'
-          },
-          context_keys: {
-            type: 'array',
-            items: { type: 'string' },
-            description:
-              "Optional. Workspace context keys to load and inject into the sub-agent's context. Requires workspace_name."
-          },
-          include_user_profile: {
-            type: 'boolean',
-            description:
-              "Optional. If true, the user's professional profile is included in the sub-agent's context. Default: false."
+              'The content to process — e.g. job posting text, combined user profile + job analysis, company name, etc. The agent description specifies what it expects here.'
           },
           workspace_name: {
             type: 'string',
             description:
-              'Required when context_keys or output_key is provided. Name of the workspace for context resolution and output storage.'
+              'Optional. Required when storeOutputToContextKey is set. Name of the workspace where the output will be stored.'
           },
-          output_key: {
+          storeOutputToContextKey: {
             type: 'string',
             description:
-              "Optional. If set, the sub-agent's output is stored in this workspace context key and a success confirmation is returned. If omitted, the full response text is returned."
+              "Optional. If set, the agent's output is stored in the workspace context under this key. Requires workspace_name."
           }
         },
-        required: ['prompt', 'system_prompt']
+        required: ['agentId', 'input']
       }
     }
   }
@@ -622,35 +474,27 @@ export const AI_TOOLS = [
 // Command → Tool mapping (which tools each command can use)
 // =========================================================
 
+// All slash commands now route through the main agent loop using list_agents + summon_agent.
+// This defines the tool subset available for each slash command's guided agent session.
+const SLASH_COMMAND_TOOLS = [
+  'get_workspaces',
+  'get_workspace',
+  'get_workspace_context',
+  'get_user_profile',
+  'go_to',
+  'create_workspace',
+  'add_workspace_context',
+  'edit_workspace_context',
+  'list_agents',
+  'summon_agent'
+]
+
 export const COMMAND_TOOLS = {
-  analyze: [
-    'get_workspaces',
-    'get_workspace',
-    'get_workspace_context',
-    'go_to',
-    'create_workspace',
-    'job_analysis',
-    'add_workspace_context',
-    'edit_workspace_context'
-  ],
-  match: [
-    'get_workspace_context',
-    'get_user_profile',
-    'generate_match_report',
-    'edit_user_profile',
-    'add_workspace_context',
-    'edit_workspace_context'
-  ],
-  research: [
-    'get_workspaces',
-    'get_workspace',
-    'get_workspace_context',
-    'go_to',
-    'create_workspace',
-    'research_company',
-    'add_workspace_context',
-    'edit_workspace_context'
-  ]
+  analyze: SLASH_COMMAND_TOOLS,
+  match: SLASH_COMMAND_TOOLS,
+  research: SLASH_COMMAND_TOOLS,
+  cv: SLASH_COMMAND_TOOLS,
+  cover: SLASH_COMMAND_TOOLS
 }
 
 /**
@@ -922,562 +766,143 @@ export const setupToolHandlers = (router, _route) => {
     return data.deleteWorkspaceContextWithConfirm(args.workspace_name, args.context_key)
   })
 
-  // ── UTILITY: job_analysis ─────────────────────────────
-  registerToolHandler('job_analysis', async (args) => {
-    if (!args.workspace_name) return { error: 'workspace_name is required' }
-    if (!args.source_context_key) return { error: 'source_context_key is required' }
-    if (!args.target_context_key) return { error: 'target_context_key is required' }
+  // ── AGENTS ──────────────────────────────────────────────
+  registerToolHandler('list_agents', async () => {
+    const agentsStore = useAgentsStore()
+    const agents = agentsStore.getAllAgents()
+    return {
+      agents: agents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        model: agent.model,
+        webSearch: agent.webSearch,
+        isBuiltIn: agent.isBuiltIn,
+        slashCommand: agent.slashCommand || null
+      }))
+    }
+  })
+
+  registerToolHandler('summon_agent', async (args, onProgress) => {
+    if (!args.agentId) return { error: 'agentId is required' }
+    if (!args.input) return { error: 'input is required' }
+    if (args.storeOutputToContextKey && !args.workspace_name) {
+      return { error: 'workspace_name is required when storeOutputToContextKey is set' }
+    }
+
+    const agentsStore = useAgentsStore()
+    const agent = agentsStore.getAgent(args.agentId)
+    if (!agent) {
+      return {
+        error: `Agent "${args.agentId}" not found. Use list_agents to see available agents.`
+      }
+    }
 
     const settingsStore = useSettingsStore()
-    const systemPromptsStore = useSystemPromptsStore()
-
     const apiKey = settingsStore.openRouterKey
     if (!apiKey) return { error: 'OpenRouter API key is not configured' }
 
-    // Get model for job analysis — strip :online suffix since agent has no web search
-    let model = settingsStore.getModelForTask(AI_COMMAND_TYPES.JOB_ANALYSIS)
-    if (!model) return { error: 'No model configured for job analysis' }
-    model = model.replace(/:online$/, '')
-
-    // Load job posting from workspace context
-    const sourceCtx = data.getWorkspaceContext(args.workspace_name, args.source_context_key)
-    if (sourceCtx.error) return { error: `Failed to load job posting: ${sourceCtx.error}` }
-
-    const jobPostingContent =
-      typeof sourceCtx.content === 'object'
-        ? sourceCtx.content.content || JSON.stringify(sourceCtx.content)
-        : sourceCtx.content
-    if (!jobPostingContent || !jobPostingContent.trim()) {
-      return { error: `Job posting at "${args.source_context_key}" is empty` }
+    // Resolve model (apply :online if webSearch enabled)
+    let model = (agent.model || settingsStore.openRouterModel || 'openai/gpt-4o-mini').replace(
+      /:online$/,
+      ''
+    )
+    if (agent.webSearch) {
+      model = `${model}:online`
     }
 
-    // Determine system prompt: custom user prompt or default from file
-    let systemPromptContent
-    const activePrompt = systemPromptsStore.getActivePrompt(PROMPT_TYPES.JOB_ANALYSIS)
-    if (activePrompt && !activePrompt.isDefault) {
-      // User has a custom prompt selected — use it
-      systemPromptContent = activePrompt.content
-    } else {
-      // Load default agent prompt from file
+    // Resolve system prompt: use stored prompt if set, otherwise load from file
+    let systemPromptContent = agent.systemPrompt
+    if (!systemPromptContent) {
       try {
-        systemPromptContent = await loadAgentPrompt('agents/job-analysis.md')
+        systemPromptContent = await loadAgentPrompt(`agents/${agent.id}.md`)
       } catch {
-        // Fallback to store default if file load fails
-        systemPromptContent = activePrompt?.content
-        if (!systemPromptContent) return { error: 'No system prompt available for job analysis' }
+        return {
+          error: `No system prompt available for agent "${agent.id}". Please set a system prompt in Agent Settings.`
+        }
       }
     }
 
-    // Append instruction to output in text block
-    systemPromptContent +=
-      '\n\n**REMINDER: Your analysis MUST be wrapped in a ```text``` code block. Content outside the block will be discarded.**'
+    // Append output-format reminder
+    const fullSystemPrompt =
+      systemPromptContent +
+      '\n\n**REMINDER: Wrap your output in a ```text``` code block. Content outside the block will be discarded.**'
 
     // Build agent messages
-    const agentMessages = [{ role: 'system', content: systemPromptContent }]
+    const agentMessages = [
+      { role: 'system', content: fullSystemPrompt },
+      { role: 'user', content: args.input }
+    ]
 
-    let userContent = `Analyze the following job posting:\n\n${jobPostingContent}`
-
-    // If iterating on existing analysis
-    if (args.comment && args.comment.trim()) {
-      const targetCtx = data.getWorkspaceContext(args.workspace_name, args.target_context_key)
-      if (targetCtx && !targetCtx.error && targetCtx.content) {
-        const existingAnalysis =
-          typeof targetCtx.content === 'object'
-            ? targetCtx.content.content || JSON.stringify(targetCtx.content)
-            : targetCtx.content
-        userContent += `\n\n---\n\n## Current Analysis (to revise)\n${existingAnalysis}`
-        userContent += `\n\n## Revision Instructions\n${args.comment}`
-      }
-    }
-
-    agentMessages.push({ role: 'user', content: userContent })
-
-    // Run the agent — no tools, no web search, just focused analysis
+    // Run with retries to ensure text block compliance
     const MAX_RETRIES = 2
-    let analysis = null
+    let result = null
     let fullResponse = ''
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const result = await streamAndCollect(apiKey, model, agentMessages, null)
-        fullResponse = result
+        fullResponse = await streamAndCollect(apiKey, model, agentMessages, onProgress || null)
 
         // Extract content from ```text``` block
-        const textBlockMatch = result.match(/```text\s*\n([\s\S]*?)```/)
+        const textBlockMatch = fullResponse.match(/```text\s*\n([\s\S]*?)```/)
         if (textBlockMatch && textBlockMatch[1].trim()) {
-          analysis = textBlockMatch[1].trim()
+          result = textBlockMatch[1].trim()
           break
         }
 
-        // If no text block found, ask the agent to fix it
+        // No text block — prompt for correction on subsequent attempts
         if (attempt < MAX_RETRIES) {
-          agentMessages.push({ role: 'assistant', content: result })
+          agentMessages.push({ role: 'assistant', content: fullResponse })
           agentMessages.push({
             role: 'user',
             content:
-              'Your job analysis MUST be wrapped in a ```text``` code block. Please provide the analysis again, this time inside a ```text``` block.'
+              'Your output MUST be wrapped in a ```text``` code block. Please provide the full output again inside a ```text``` block.'
           })
         } else {
-          // Last resort: use the full response if no text block after retries
-          analysis = result.trim()
+          // Last resort: use the full response
+          result = fullResponse.trim()
         }
       } catch (e) {
-        return { error: `Job analysis agent failed: ${e.message}` }
+        return { error: `Agent "${agent.id}" failed: ${e.message}` }
       }
     }
 
-    if (!analysis) {
-      return { error: 'Job analysis agent produced no output' }
+    if (!result) {
+      return { error: `Agent "${agent.id}" produced no output` }
     }
 
-    // Store the analysis in the target workspace context key
-    const targetCtx = data.getWorkspaceContext(args.workspace_name, args.target_context_key)
-    let storeResult
-    if (targetCtx && !targetCtx.error && targetCtx.content) {
-      // Update existing
-      storeResult = data.editWorkspaceContext(
-        args.workspace_name,
-        args.target_context_key,
-        analysis
-      )
-    } else {
-      // Create new
-      storeResult = data.addWorkspaceContext(args.workspace_name, args.target_context_key, analysis)
-    }
-
-    if (storeResult.error) {
-      return { error: `Analysis completed but failed to store: ${storeResult.error}` }
-    }
-
-    // Remove the text block from the full response and return the rest as context for the main assistant
-    const responseWithoutTextBlock = fullResponse.replace(/```text\s*\n[\s\S]*?```/, '').trim()
-
-    return {
-      success: true,
-      message: `Job analysis saved to "${args.target_context_key}" in workspace "${args.workspace_name}"`,
-      agentResponse: responseWithoutTextBlock || 'Analysis completed successfully.'
-    }
-  })
-
-  // ── UTILITY: generate_match_report ──────────────────────
-  registerToolHandler('generate_match_report', async (args) => {
-    if (!args.workspace_name) return { error: 'workspace_name is required' }
-    if (!args.source_context_key) return { error: 'source_context_key is required' }
-    if (!args.target_context_key) return { error: 'target_context_key is required' }
-
-    // Load job analysis from SOURCE workspace key
-    const jobCtx = data.getWorkspaceContext(args.workspace_name, args.source_context_key)
-    if (jobCtx.error) return { error: jobCtx.error }
-
-    const jobContent =
-      typeof jobCtx.content === 'object'
-        ? jobCtx.content.content || JSON.stringify(jobCtx.content)
-        : jobCtx.content
-    if (!jobContent || !jobContent.trim()) {
-      return { error: 'Job analysis not found. Please run /analyze command first.' }
-    }
-
-    // Load user profile
-    const profile = data.getUserProfile()
-    if (!profile || !profile.trim()) {
-      return { error: 'User profile empty.' }
-    }
-
-    const settingsStore = useSettingsStore()
-    const systemPromptsStore = useSystemPromptsStore()
-
-    const apiKey = settingsStore.openRouterKey
-    if (!apiKey) return { error: 'OpenRouter API key is not configured' }
-
-    // Get model — strip :online suffix since agent has no web search
-    let model = settingsStore.getModelForTask(AI_COMMAND_TYPES.MATCH_REPORT)
-    if (!model) return { error: 'No model configured for match report' }
-    model = model.replace(/:online$/, '')
-
-    // Determine system prompt: custom user prompt or default from file
-    let systemPromptContent
-    const activePrompt = systemPromptsStore.getActivePrompt(PROMPT_TYPES.MATCH_REPORT)
-    if (activePrompt && !activePrompt.isDefault) {
-      // User has a custom prompt selected — use it
-      systemPromptContent = activePrompt.content
-    } else {
-      // Load default agent prompt from file
-      try {
-        systemPromptContent = await loadAgentPrompt('agents/match-report.md')
-      } catch {
-        // Fallback to store default if file load fails
-        systemPromptContent = activePrompt?.content
-        if (!systemPromptContent) return { error: 'No system prompt available for match report' }
-      }
-    }
-
-    // Append instruction to output in text block
-    systemPromptContent +=
-      '\n\n**REMINDER: Your match report MUST be wrapped in a ```text``` code block. Content outside the block will be discarded.**'
-
-    // Build agent messages
-    const agentMessages = [{ role: 'system', content: systemPromptContent }]
-
-    // Check if TARGET key already exists (iteration vs new)
-    const targetCtx = data.getWorkspaceContext(args.workspace_name, args.target_context_key)
-    const isIteration = targetCtx && !targetCtx.error && targetCtx.content
-
-    if (!isIteration) {
-      // New match report — send job analysis + user profile
-      agentMessages.push({
-        role: 'user',
-        content: `## User Profile\n${profile}\n\n## Job Analysis\n${jobContent}`
-      })
-    } else {
-      // Iteration on existing report
-      const existingReport =
-        typeof targetCtx.content === 'object'
-          ? targetCtx.content.content || JSON.stringify(targetCtx.content)
-          : targetCtx.content
-
-      agentMessages.push({
-        role: 'user',
-        content: `## User Profile\n${profile}\n\n## Job Analysis\n${jobContent}\n\n---\n\n## Current Match Report (to revise)\n${existingReport}`
-      })
-
-      if (args.comment && args.comment.trim()) {
-        agentMessages.push({
-          role: 'user',
-          content: `## Revision Instructions\n${args.comment}`
-        })
-      }
-    }
-
-    // Run the agent — no tools, no web search, just focused analysis
-    const MAX_RETRIES = 2
-    let matchReport = null
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const result = await streamAndCollect(apiKey, model, agentMessages, null)
-
-        // Extract content from ```text``` block
-        const textBlockMatch = result.match(/```text\s*\n([\s\S]*?)```/)
-        if (textBlockMatch && textBlockMatch[1].trim()) {
-          matchReport = textBlockMatch[1].trim()
-          break
-        }
-
-        // If no text block found, ask the agent to fix it
-        if (attempt < MAX_RETRIES) {
-          agentMessages.push({ role: 'assistant', content: result })
-          agentMessages.push({
-            role: 'user',
-            content:
-              'Match report MUST BE in a text block. Please provide the match report again, this time inside a ```text``` block.'
-          })
-        } else {
-          // Last resort: use the full response if no text block after retries
-          matchReport = result.trim()
-        }
-      } catch (e) {
-        return { error: `Match report agent failed: ${e.message}` }
-      }
-    }
-
-    if (!matchReport) {
-      return { error: 'Match report agent produced no output' }
-    }
-
-    // Store the match report in the TARGET workspace context key
-    let storeResult
-    if (isIteration) {
-      // Update existing
-      storeResult = data.editWorkspaceContext(
-        args.workspace_name,
-        args.target_context_key,
-        matchReport
-      )
-    } else {
-      // Create new
-      storeResult = data.addWorkspaceContext(
-        args.workspace_name,
-        args.target_context_key,
-        matchReport
-      )
-    }
-
-    if (storeResult.error) {
-      return { error: `Match report completed but failed to store: ${storeResult.error}` }
-    }
-
-    return {
-      success: true,
-      message: `Match report saved to "${args.target_context_key}" in workspace "${args.workspace_name}"`,
-      report: matchReport
-    }
-  })
-
-  // ── UTILITY: research_company ───────────────────────────
-  registerToolHandler('research_company', async (args) => {
-    if (!args.company_info) return { error: 'company_info is required' }
-
-    const settingsStore = useSettingsStore()
-    const systemPromptsStore = useSystemPromptsStore()
-
-    const apiKey = settingsStore.openRouterKey
-    if (!apiKey) return { error: 'OpenRouter API key is not configured' }
-
-    // Get model and append :online to enable web search via OpenRouter
-    let model = settingsStore.getModelForTask(AI_COMMAND_TYPES.COMPANY_RESEARCH)
-    if (!model) return { error: 'No model configured for company research' }
-    model = model.replace(/:online$/, '') + ':online'
-
-    // Determine system prompt: custom user prompt or default from file
-    let systemPromptContent
-    const activePrompt = systemPromptsStore.getActivePrompt(PROMPT_TYPES.COMPANY_RESEARCH)
-    if (activePrompt && !activePrompt.isDefault) {
-      // User has a custom prompt selected — use it
-      systemPromptContent = activePrompt.content
-    } else {
-      // Load default agent prompt from file
-      try {
-        systemPromptContent = await loadAgentPrompt('agents/company-research.md')
-      } catch {
-        // Fallback to store default if file load fails
-        systemPromptContent = activePrompt?.content
-        if (!systemPromptContent)
-          return { error: 'No system prompt available for company research' }
-      }
-    }
-
-    // Append instruction to output in text block (appended programmatically, independent of system prompt)
-    systemPromptContent +=
-      '\n\n**REMINDER: Your company research report MUST be wrapped in a ```text``` code block. Content outside the block will be discarded.**'
-
-    // Build agent messages
-    const agentMessages = [{ role: 'system', content: systemPromptContent }]
-
-    if (args.current_research) {
-      // Iteration mode — refine existing research
-      agentMessages.push({
-        role: 'user',
-        content: `## Company Information\n${args.company_info}\n\n---\n\n## Current Research (to improve)\n${args.current_research}${args.iteration_prompt ? `\n\n## Iteration Instructions\n${args.iteration_prompt}` : ''}`
-      })
-    } else {
-      // New research
-      agentMessages.push({
-        role: 'user',
-        content: `Research the following company:\n\n${args.company_info}`
-      })
-    }
-
-    // Run the agent with web search enabled via :online model suffix
-    const MAX_RETRIES = 2
-    let research = null
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const result = await streamAndCollect(apiKey, model, agentMessages, null)
-
-        // Extract content from ```text``` block
-        const textBlockMatch = result.match(/```text\s*\n([\s\S]*?)```/)
-        if (textBlockMatch && textBlockMatch[1].trim()) {
-          research = textBlockMatch[1].trim()
-          break
-        }
-
-        // If no text block found, ask the agent to fix it
-        if (attempt < MAX_RETRIES) {
-          agentMessages.push({ role: 'assistant', content: result })
-          agentMessages.push({
-            role: 'user',
-            content:
-              'Company research report MUST BE in a text block. Please provide the research report again, this time inside a ```text``` block.'
-          })
-        } else {
-          // Last resort: use the full response if no text block after retries
-          research = result.trim()
-        }
-      } catch (e) {
-        return { error: `Company research failed: ${e.message}` }
-      }
-    }
-
-    if (!research) {
-      return { error: 'Company research agent produced no output' }
-    }
-
-    // Save to workspace context if workspace_name and target_context_key were provided
-    if (args.workspace_name && args.target_context_key) {
-      const targetCtx = data.getWorkspaceContext(args.workspace_name, args.target_context_key)
+    // Optionally store result to workspace context
+    if (args.storeOutputToContextKey && args.workspace_name) {
+      const existing = data.getWorkspaceContext(args.workspace_name, args.storeOutputToContextKey)
       let storeResult
-      if (targetCtx && !targetCtx.error && targetCtx.content) {
-        // Update existing
+      if (existing && !existing.error && existing.content) {
         storeResult = data.editWorkspaceContext(
           args.workspace_name,
-          args.target_context_key,
-          research
+          args.storeOutputToContextKey,
+          result
         )
       } else {
-        // Create new
         storeResult = data.addWorkspaceContext(
           args.workspace_name,
-          args.target_context_key,
-          research
+          args.storeOutputToContextKey,
+          result
         )
       }
-
       if (storeResult.error) {
-        return { error: `Research completed but failed to store: ${storeResult.error}` }
-      }
-    }
-
-    return { success: true, message: 'Company research completed successfully', research }
-  })
-
-  // ── SYSTEM PROMPTS ──────────────────────────────────────
-  registerToolHandler('list_system_prompts', async () => {
-    const systemPromptsStore = useSystemPromptsStore()
-    const categories = systemPromptsStore.listCategories()
-    return {
-      categories: categories.map((cat) => {
-        const activePrompt = systemPromptsStore.getActivePrompt(cat.key)
         return {
-          key: cat.key,
-          name: cat.name,
-          isDefault: cat.isDefault,
-          activePromptName: activePrompt?.name || 'Default'
-        }
-      })
-    }
-  })
-
-  registerToolHandler('get_system_prompt', async (args) => {
-    if (!args.key) return { error: 'key is required' }
-
-    const systemPromptsStore = useSystemPromptsStore()
-    if (!systemPromptsStore.hasCategory(args.key)) {
-      return {
-        error: `System prompt category "${args.key}" not found. Use list_system_prompts to see available categories.`
-      }
-    }
-
-    const activePrompt = systemPromptsStore.getActivePrompt(args.key)
-    if (!activePrompt) {
-      return { error: `No active prompt found for category "${args.key}".` }
-    }
-
-    return {
-      key: args.key,
-      name: activePrompt.name,
-      isDefault: activePrompt.isDefault,
-      content: activePrompt.content
-    }
-  })
-
-  // ── SUB-AGENT ───────────────────────────────────────────
-  registerToolHandler('sub_agent', async (args, onProgress) => {
-    if (!args.prompt) return { error: 'prompt is required' }
-    if (!args.system_prompt) return { error: 'system_prompt is required' }
-
-    // Validate workspace_name requirement
-    if ((args.context_keys?.length > 0 || args.output_key) && !args.workspace_name) {
-      return { error: 'workspace_name is required when context_keys or output_key is provided' }
-    }
-
-    const settingsStore = useSettingsStore()
-    const systemPromptsStore = useSystemPromptsStore()
-
-    const apiKey = settingsStore.openRouterKey
-    if (!apiKey) return { error: 'OpenRouter API key is not configured' }
-
-    // Resolve model
-    let model = args.model || settingsStore.openRouterModel
-    if (!model) return { error: 'No model configured. Please set a default model in settings.' }
-
-    // Resolve system prompt: key lookup first, then treat as literal text
-    let systemPromptContent
-    if (systemPromptsStore.hasCategory(args.system_prompt)) {
-      const activePrompt = systemPromptsStore.getActivePrompt(args.system_prompt)
-      if (activePrompt && activePrompt.content) {
-        systemPromptContent = activePrompt.content
-      } else {
-        return { error: `System prompt category "${args.system_prompt}" has no content.` }
-      }
-    } else {
-      // Treat as literal text
-      systemPromptContent = args.system_prompt
-    }
-
-    // Build context block from context keys and user profile
-    let contextBlock = ''
-
-    if (args.context_keys?.length > 0) {
-      for (const key of args.context_keys) {
-        const ctx = data.getWorkspaceContext(args.workspace_name, key)
-        if (ctx && !ctx.error) {
-          const content =
-            typeof ctx.content === 'object'
-              ? ctx.content.content || JSON.stringify(ctx.content)
-              : ctx.content
-          if (content && content.trim()) {
-            contextBlock += `\n\n## Context: ${key}\n${content}`
-          }
+          error: `Agent "${agent.id}" completed but failed to store output: ${storeResult.error}`
         }
       }
-    }
 
-    if (args.include_user_profile) {
-      const profile = data.getUserProfile()
-      if (profile && profile.trim()) {
-        contextBlock += `\n\n## User Profile\n${profile}`
-      }
-    }
-
-    // Assemble messages
-    const fullSystemPrompt = contextBlock
-      ? `${systemPromptContent}\n\n---\n\n# Provided Context${contextBlock}`
-      : systemPromptContent
-
-    const agentMessages = [
-      { role: 'system', content: fullSystemPrompt },
-      { role: 'user', content: args.prompt }
-    ]
-
-    // Run the sub-agent (bare LLM call — no tools, no recursion)
-    let fullResponse
-    try {
-      fullResponse = await streamAndCollect(apiKey, model, agentMessages, onProgress || null)
-    } catch (e) {
-      return { error: `Sub-agent failed: ${e.message}` }
-    }
-
-    if (!fullResponse || !fullResponse.trim()) {
-      return { error: 'Sub-agent produced no output' }
-    }
-
-    // Handle output
-    if (args.output_key) {
-      // Store in workspace context
-      const targetCtx = data.getWorkspaceContext(args.workspace_name, args.output_key)
-      let storeResult
-      if (targetCtx && !targetCtx.error && targetCtx.content) {
-        storeResult = data.editWorkspaceContext(args.workspace_name, args.output_key, fullResponse)
-      } else {
-        storeResult = data.addWorkspaceContext(args.workspace_name, args.output_key, fullResponse)
-      }
-
-      if (storeResult.error) {
-        return { error: `Sub-agent completed but failed to store output: ${storeResult.error}` }
-      }
-
+      // Remove text block from response summary
+      const summary = fullResponse.replace(/```text\s*\n[\s\S]*?```/, '').trim()
       return {
         success: true,
-        message: `Sub-agent output stored in "${args.output_key}" in workspace "${args.workspace_name}"`,
-        output_key: args.output_key
+        message: `Agent "${agent.name}" completed. Result stored in "${args.storeOutputToContextKey}" in workspace "${args.workspace_name}".`,
+        agentResponse: summary || 'Completed successfully.'
       }
     }
 
-    // Return full response
-    return {
-      success: true,
-      response: fullResponse
-    }
+    return { success: true, result }
   })
 }

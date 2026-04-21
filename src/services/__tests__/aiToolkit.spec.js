@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useUserProfileStore } from '../../stores/userProfile'
 import { useSettingsStore } from '../../stores/settings'
-import { useSystemPromptsStore } from '../../stores/systemPrompts'
 import { createCvDocument, createCoverLetterDocument } from '../../test/factories'
 
 // Mock the AI service module — must include ALL exports that downstream modules (settings.js) import
@@ -88,12 +87,8 @@ describe('aiToolkit', () => {
       expect(names).toContain('create_cv')
       expect(names).toContain('edit_cv')
       expect(names).toContain('delete_cv')
-      expect(names).toContain('job_analysis')
-      expect(names).toContain('generate_match_report')
-      expect(names).toContain('research_company')
-      expect(names).toContain('list_system_prompts')
-      expect(names).toContain('get_system_prompt')
-      expect(names).toContain('sub_agent')
+      expect(names).toContain('list_agents')
+      expect(names).toContain('summon_agent')
     })
   })
 
@@ -115,16 +110,24 @@ describe('aiToolkit', () => {
       expect(COMMAND_TOOLS.research).toBeDefined()
     })
 
-    it('analyze tools include job_analysis', () => {
-      expect(COMMAND_TOOLS.analyze).toContain('job_analysis')
+    it('analyze tools include list_agents and summon_agent', () => {
+      expect(COMMAND_TOOLS.analyze).toContain('list_agents')
+      expect(COMMAND_TOOLS.analyze).toContain('summon_agent')
     })
 
-    it('match tools include generate_match_report', () => {
-      expect(COMMAND_TOOLS.match).toContain('generate_match_report')
+    it('match tools include list_agents and summon_agent', () => {
+      expect(COMMAND_TOOLS.match).toContain('list_agents')
+      expect(COMMAND_TOOLS.match).toContain('summon_agent')
     })
 
-    it('research tools include research_company', () => {
-      expect(COMMAND_TOOLS.research).toContain('research_company')
+    it('research tools include list_agents and summon_agent', () => {
+      expect(COMMAND_TOOLS.research).toContain('list_agents')
+      expect(COMMAND_TOOLS.research).toContain('summon_agent')
+    })
+
+    it('cv and cover commands are defined', () => {
+      expect(COMMAND_TOOLS.cv).toBeDefined()
+      expect(COMMAND_TOOLS.cover).toBeDefined()
     })
   })
 
@@ -141,23 +144,23 @@ describe('aiToolkit', () => {
     it('filters tools for analyze command', () => {
       const tools = getToolsForCommand('analyze')
       const names = tools.map((t) => t.function.name)
-      expect(names).toContain('job_analysis')
-      expect(names).not.toContain('create_cv')
+      expect(names).toContain('list_agents')
+      expect(names).toContain('summon_agent')
     })
 
     it('filters tools for match command', () => {
       const tools = getToolsForCommand('match')
       const names = tools.map((t) => t.function.name)
-      expect(names).toContain('generate_match_report')
+      expect(names).toContain('list_agents')
+      expect(names).toContain('summon_agent')
       expect(names).toContain('get_user_profile')
-      expect(names).not.toContain('go_to')
     })
 
     it('filters tools for research command', () => {
       const tools = getToolsForCommand('research')
       const names = tools.map((t) => t.function.name)
-      expect(names).toContain('research_company')
-      expect(names).not.toContain('create_cv')
+      expect(names).toContain('list_agents')
+      expect(names).toContain('summon_agent')
     })
 
     it('returns all tools for undefined command', () => {
@@ -904,946 +907,145 @@ describe('aiToolkit', () => {
       })
     })
 
-    // ── UTILITY: job_analysis handler ─────────────────
-    describe('job_analysis', () => {
+    // ── AGENTS: list_agents handler ───────────────────
+    describe('list_agents', () => {
+      it('returns a list of agents', async () => {
+        const result = await executeToolCall({
+          function: { name: 'list_agents', arguments: '{}' }
+        })
+        expect(result.agents).toBeDefined()
+        expect(Array.isArray(result.agents)).toBe(true)
+        expect(result.agents.length).toBeGreaterThan(0)
+      })
+
+      it('each agent has id, name, and description', async () => {
+        const result = await executeToolCall({
+          function: { name: 'list_agents', arguments: '{}' }
+        })
+        for (const agent of result.agents) {
+          expect(agent).toHaveProperty('id')
+          expect(agent).toHaveProperty('name')
+          expect(agent).toHaveProperty('description')
+        }
+      })
+
+      it('includes the built-in agents', async () => {
+        const result = await executeToolCall({
+          function: { name: 'list_agents', arguments: '{}' }
+        })
+        const ids = result.agents.map((a) => a.id)
+        expect(ids).toContain('job-analysis')
+        expect(ids).toContain('match-report')
+        expect(ids).toContain('company-research')
+        expect(ids).toContain('cv-generation')
+        expect(ids).toContain('cover-letter')
+      })
+    })
+
+    // ── AGENTS: summon_agent handler ──────────────────
+    describe('summon_agent', () => {
       beforeEach(() => {
-        // Set up settings store with API key and model
         const settings = useSettingsStore()
         settings.openRouterKey = 'test-api-key'
-        settings.taskModels = {
-          jobAnalysis: 'test-model',
-          matchReport: 'test-model',
-          companyResearch: 'test-model'
-        }
-
-        // Set up system prompts store
-        useSystemPromptsStore()
-        // The default prompt is used since we load from file (mocked)
       })
 
-      it('returns error when workspace_name missing', async () => {
+      it('returns error when agentId is missing', async () => {
         const result = await executeToolCall({
-          function: {
-            name: 'job_analysis',
-            arguments: JSON.stringify({
-              source_context_key: 'job_posting',
-              target_context_key: 'job_analysis'
-            })
-          }
+          function: { name: 'summon_agent', arguments: '{"input":"some text"}' }
         })
-        expect(result.error).toContain('workspace_name is required')
+        expect(result.error).toBeDefined()
+        expect(result.error).toContain('agentId')
       })
 
-      it('returns error when source_context_key missing', async () => {
-        seedWorkspace('WS1')
+      it('returns error when input is missing', async () => {
         const result = await executeToolCall({
-          function: {
-            name: 'job_analysis',
-            arguments: JSON.stringify({
-              workspace_name: 'WS1',
-              target_context_key: 'job_analysis'
-            })
-          }
+          function: { name: 'summon_agent', arguments: '{"agentId":"job-analysis"}' }
         })
-        expect(result.error).toContain('source_context_key is required')
+        expect(result.error).toBeDefined()
+        expect(result.error).toContain('input')
       })
 
-      it('returns error when target_context_key missing', async () => {
-        seedWorkspace('WS1')
+      it('returns error when agent is not found', async () => {
         const result = await executeToolCall({
           function: {
-            name: 'job_analysis',
-            arguments: JSON.stringify({
-              workspace_name: 'WS1',
-              source_context_key: 'job_posting'
-            })
-          }
-        })
-        expect(result.error).toContain('target_context_key is required')
-      })
-
-      it('returns error when source context is empty', async () => {
-        seedWorkspace('WS1')
-        const result = await executeToolCall({
-          function: {
-            name: 'job_analysis',
-            arguments: JSON.stringify({
-              workspace_name: 'WS1',
-              source_context_key: 'job_posting',
-              target_context_key: 'job_analysis'
-            })
+            name: 'summon_agent',
+            arguments: '{"agentId":"nonexistent-agent","input":"some text"}'
           }
         })
         expect(result.error).toBeDefined()
+        expect(result.error).toContain('not found')
       })
 
-      it('runs analysis and stores result on success', async () => {
-        seedWorkspace('WS1', {
-          extra: {
-            job_posting: {
-              content: 'Looking for a senior developer with 5 years exp',
-              createdAt: Date.now(),
-              lastModified: Date.now()
-            }
-          }
-        })
-
-        // Mock the AI response with text block
-        streamAndCollect.mockResolvedValueOnce(
-          'Some preamble\n```text\nJob Title: Senior Developer\nCompany: Acme\n```\nSome conclusion'
-        )
-
+      it('returns error when API key is not configured', async () => {
+        const settings = useSettingsStore()
+        settings.openRouterKey = ''
         const result = await executeToolCall({
           function: {
-            name: 'job_analysis',
+            name: 'summon_agent',
+            arguments: '{"agentId":"job-analysis","input":"some text"}'
+          }
+        })
+        expect(result.error).toBeDefined()
+        expect(result.error).toContain('API key')
+      })
+
+      it('runs agent and returns result', async () => {
+        streamAndCollect.mockResolvedValueOnce('```text\nGreat analysis\n```')
+        const result = await executeToolCall({
+          function: {
+            name: 'summon_agent',
+            arguments: '{"agentId":"job-analysis","input":"Senior Dev role"}'
+          }
+        })
+        expect(result.success).toBe(true)
+        expect(result.result).toContain('Great analysis')
+      })
+
+      it('appends :online when agent has webSearch enabled', async () => {
+        streamAndCollect.mockResolvedValueOnce('```text\nResult\n```')
+        await executeToolCall({
+          function: {
+            name: 'summon_agent',
+            arguments: '{"agentId":"job-analysis","input":"some job"}'
+          }
+        })
+        // job-analysis has webSearch: true, so :online should be appended
+        expect(streamAndCollect).toHaveBeenCalled()
+        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
+        expect(callArgs[1]).toMatch(/:online$/)
+      })
+
+      it('stores output to workspace context when storeOutputToContextKey is set', async () => {
+        seedWorkspace('WS1')
+        streamAndCollect.mockResolvedValueOnce('```text\nAnalysis result\n```')
+        const result = await executeToolCall({
+          function: {
+            name: 'summon_agent',
             arguments: JSON.stringify({
+              agentId: 'job-analysis',
+              input: 'Senior Dev role',
               workspace_name: 'WS1',
-              source_context_key: 'job_posting',
-              target_context_key: 'job_analysis'
+              storeOutputToContextKey: 'job_analysis'
             })
           }
         })
         expect(result.success).toBe(true)
-        expect(result.message).toContain('job_analysis')
-
-        // Verify it was stored in workspace context
         const ws = useWorkspaceStore()
         expect(ws.workspaces['WS1'].job_analysis).toBeDefined()
-        expect(ws.workspaces['WS1'].job_analysis.content).toContain('Senior Developer')
       })
 
-      it('returns error when API key is not configured', async () => {
-        const settings = useSettingsStore()
-        settings.openRouterKey = ''
-
-        seedWorkspace('WS1', {
-          extra: {
-            job_posting: {
-              content: 'Job content',
-              createdAt: Date.now(),
-              lastModified: Date.now()
-            }
-          }
-        })
-
-        const result = await executeToolCall({
-          function: {
-            name: 'job_analysis',
-            arguments: JSON.stringify({
-              workspace_name: 'WS1',
-              source_context_key: 'job_posting',
-              target_context_key: 'job_analysis'
-            })
-          }
-        })
-        expect(result.error).toContain('API key')
-      })
-    })
-
-    // ── UTILITY: generate_match_report handler ────────
-    describe('generate_match_report', () => {
-      beforeEach(() => {
-        const settings = useSettingsStore()
-        settings.openRouterKey = 'test-api-key'
-        settings.taskModels = {
-          jobAnalysis: 'test-model',
-          matchReport: 'test-model',
-          companyResearch: 'test-model'
-        }
-      })
-
-      it('returns error when workspace_name missing', async () => {
-        const result = await executeToolCall({
-          function: {
-            name: 'generate_match_report',
-            arguments: JSON.stringify({
-              source_context_key: 'job_analysis',
-              target_context_key: 'match_report'
-            })
-          }
-        })
-        expect(result.error).toContain('workspace_name is required')
-      })
-
-      it('returns error when source_context_key missing', async () => {
-        seedWorkspace('WS1')
-        const result = await executeToolCall({
-          function: {
-            name: 'generate_match_report',
-            arguments: JSON.stringify({
-              workspace_name: 'WS1',
-              target_context_key: 'match_report'
-            })
-          }
-        })
-        expect(result.error).toContain('source_context_key is required')
-      })
-
-      it('returns error when target_context_key missing', async () => {
-        seedWorkspace('WS1')
-        const result = await executeToolCall({
-          function: {
-            name: 'generate_match_report',
-            arguments: JSON.stringify({
-              workspace_name: 'WS1',
-              source_context_key: 'job_analysis'
-            })
-          }
-        })
-        expect(result.error).toContain('target_context_key is required')
-      })
-
-      it('returns error when API key is not configured', async () => {
-        const settings = useSettingsStore()
-        settings.openRouterKey = ''
-
-        seedWorkspace('WS1', {
-          extra: {
-            job_analysis: {
-              content: 'Job analysis content',
-              createdAt: Date.now(),
-              lastModified: Date.now()
-            }
-          }
-        })
-
-        const profile = useUserProfileStore()
-        profile.updateProfessionalExperience('5 years of experience')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'generate_match_report',
-            arguments: JSON.stringify({
-              workspace_name: 'WS1',
-              source_context_key: 'job_analysis',
-              target_context_key: 'match_report'
-            })
-          }
-        })
-        expect(result.error).toContain('API key')
-      })
-
-      it('returns error when user profile is empty', async () => {
-        seedWorkspace('WS1', {
-          extra: {
-            job_analysis: {
-              content: 'Job analysis content',
-              createdAt: Date.now(),
-              lastModified: Date.now()
-            }
-          }
-        })
-
-        const result = await executeToolCall({
-          function: {
-            name: 'generate_match_report',
-            arguments: JSON.stringify({
-              workspace_name: 'WS1',
-              source_context_key: 'job_analysis',
-              target_context_key: 'match_report'
-            })
-          }
-        })
-        expect(result.error).toContain('profile')
-      })
-
-      it('generates and stores match report on success', async () => {
-        // Set up user profile
-        const profile = useUserProfileStore()
-        profile.updateProfessionalExperience('10 years of JavaScript experience')
-
-        seedWorkspace('WS1', {
-          extra: {
-            job_analysis: {
-              content: 'Looking for JS developer',
-              createdAt: Date.now(),
-              lastModified: Date.now()
-            }
-          }
-        })
-
-        streamAndCollect.mockResolvedValueOnce(
-          '```text\nMatch Score: 85%\nStrong fit for this role.\n```'
-        )
-
-        const result = await executeToolCall({
-          function: {
-            name: 'generate_match_report',
-            arguments: JSON.stringify({
-              workspace_name: 'WS1',
-              source_context_key: 'job_analysis',
-              target_context_key: 'match_report'
-            })
-          }
-        })
-        expect(result.success).toBe(true)
-        expect(result.report).toContain('Match Score')
-      })
-    })
-
-    // ── UTILITY: research_company handler ─────────────
-    describe('research_company', () => {
-      beforeEach(() => {
-        const settings = useSettingsStore()
-        settings.openRouterKey = 'test-api-key'
-        settings.taskModels = {
-          companyResearch: 'test-model'
-        }
-      })
-
-      it('returns error when company_info missing', async () => {
-        const result = await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: '{}'
-          }
-        })
-        expect(result.error).toContain('company_info is required')
-      })
-
-      it('returns error when API key not configured', async () => {
-        const settings = useSettingsStore()
-        settings.openRouterKey = ''
-
-        const result = await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: '{"company_info":"Acme Corp"}'
-          }
-        })
-        expect(result.error).toContain('API key')
-      })
-
-      it('appends :online to model name for web search', async () => {
-        useSystemPromptsStore()
-
-        streamAndCollect.mockResolvedValue('```text\nAcme research\n```')
-
-        await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: '{"company_info":"Acme Corp"}'
-          }
-        })
-
-        expect(streamAndCollect).toHaveBeenCalledWith(
-          'test-api-key',
-          'test-model:online',
-          expect.any(Array),
-          null
-        )
-        streamAndCollect.mockReset()
-      })
-
-      it('does not duplicate :online suffix when already present', async () => {
-        useSystemPromptsStore()
-
-        const settings = useSettingsStore()
-        // Ensure taskModels exists and set companyResearch to a value that already includes :online
-        settings.taskModels = settings.taskModels || {}
-        settings.taskModels.companyResearch = 'test-model:online'
-
-        streamAndCollect.mockResolvedValue('```text\nAcme research\n```')
-
-        await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: '{"company_info":"Acme Corp"}'
-          }
-        })
-
-        expect(streamAndCollect).toHaveBeenCalledWith(
-          'test-api-key',
-          'test-model:online',
-          expect.any(Array),
-          null
-        )
-        streamAndCollect.mockReset()
-      })
-      it('extracts research from text block', async () => {
-        useSystemPromptsStore()
-
-        streamAndCollect.mockResolvedValueOnce(
-          '```text\nAcme Corp is a well-established company.\n```'
-        )
-
-        const result = await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: '{"company_info":"Acme Corp"}'
-          }
-        })
-        expect(result.success).toBe(true)
-        expect(result.research).toBe('Acme Corp is a well-established company.')
-      })
-
-      it('falls back to full response after retries when no text block', async () => {
-        useSystemPromptsStore()
-
-        streamAndCollect.mockResolvedValue('Acme Corp is a well-established company...')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: '{"company_info":"Acme Corp"}'
-          }
-        })
-        expect(result.success).toBe(true)
-        expect(result.research).toContain('Acme Corp')
-        streamAndCollect.mockReset()
-      })
-
-      it('saves research to workspace context when workspace_name and target_context_key are provided', async () => {
-        useSystemPromptsStore()
-        seedWorkspace('WS1')
-
-        streamAndCollect.mockResolvedValueOnce('```text\nAcme Corp research report.\n```')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: JSON.stringify({
-              company_info: 'Acme Corp',
-              workspace_name: 'WS1',
-              target_context_key: 'company_research'
-            })
-          }
-        })
-        expect(result.success).toBe(true)
-        expect(result.research).toBe('Acme Corp research report.')
-
-        // Verify it was stored in workspace context
-        const ws = useWorkspaceStore()
-        const ctx = ws.workspaces['WS1']['company_research']
-        expect(ctx).toBeDefined()
-      })
-
-      it('updates existing workspace context when target_context_key already exists', async () => {
-        useSystemPromptsStore()
-        seedWorkspace('WS1')
-
-        // Pre-seed existing research for the same context key
-        const ws = useWorkspaceStore()
-        ws.workspaces['WS1']['company_research'] = 'Existing research'
-
-        streamAndCollect.mockResolvedValueOnce('```text\nAcme Corp updated research report.\n```')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: JSON.stringify({
-              company_info: 'Acme Corp',
-              workspace_name: 'WS1',
-              target_context_key: 'company_research'
-            })
-          }
-        })
-
-        expect(result.success).toBe(true)
-        expect(result.research).toBe('Acme Corp updated research report.')
-        // Verify the existing workspace context entry was updated
-        expect(ws.workspaces['WS1']['company_research'].content).toBe(
-          'Acme Corp updated research report.'
-        )
-      })
-      it('returns research without saving when workspace params are omitted', async () => {
-        useSystemPromptsStore()
-
-        streamAndCollect.mockResolvedValueOnce('```text\nAcme Corp research.\n```')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: '{"company_info":"Acme Corp"}'
-          }
-        })
-        expect(result.success).toBe(true)
-        expect(result.research).toBe('Acme Corp research.')
-      })
-
-      it('supports iterating on existing research with iteration_prompt', async () => {
-        useSystemPromptsStore()
-        streamAndCollect.mockReset()
-
-        const existingResearch = 'Previous Acme Corp research.'
-        const iterationPrompt = 'Focus on recent financial performance.'
-
-        streamAndCollect.mockResolvedValueOnce('```text\nUpdated Acme Corp research.\n```')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'research_company',
-            arguments: JSON.stringify({
-              company_info: 'Acme Corp',
-              current_research: existingResearch,
-              iteration_prompt: iterationPrompt
-            })
-          }
-        })
-
-        expect(result.success).toBe(true)
-        expect(result.research).toBe('Updated Acme Corp research.')
-
-        // Ensure the AI call received the iteration context and prompt
-        expect(streamAndCollect).toHaveBeenCalled()
-        const firstCallArgs = streamAndCollect.mock.calls[0]
-        const serializedArgs = JSON.stringify(firstCallArgs)
-        expect(serializedArgs).toContain(existingResearch)
-        expect(serializedArgs).toContain(iterationPrompt)
-      })
-    })
-
-    // ── DELETION handlers ────────────────────────────
-    describe('delete_workspace', () => {
-      it('delegates to deleteWorkspaceWithConfirm', async () => {
-        seedWorkspace('WS1')
-        // The deletion will hang waiting for confirmation, so we don't await fully
-        // Just verify the tool is registered and callable
-        const promise = executeToolCall({
-          function: {
-            name: 'delete_workspace',
-            arguments: '{"workspace_name":"WS1"}'
-          }
-        })
-        // This is an async operation that waits for user confirmation
-        // We can't easily test the full flow here, but verify it's invoked
-        expect(promise).toBeInstanceOf(Promise)
-      })
-
-      it('returns error immediately when workspace not found', async () => {
-        const result = await executeToolCall({
-          function: {
-            name: 'delete_workspace',
-            arguments: '{"workspace_name":"NoSuchWS"}'
-          }
-        })
-        expect(result.error).toContain('not found')
-      })
-    })
-
-    describe('delete_cv', () => {
-      it('returns error immediately when workspace not found', async () => {
-        const result = await executeToolCall({
-          function: {
-            name: 'delete_cv',
-            arguments: '{"workspace_name":"NoSuchWS","cv_name":"MyCv"}'
-          }
-        })
-        expect(result.error).toContain('not found')
-      })
-
-      it('returns error immediately when cv not found', async () => {
-        seedWorkspace('WS1')
-        const result = await executeToolCall({
-          function: {
-            name: 'delete_cv',
-            arguments: '{"workspace_name":"WS1","cv_name":"NoCv"}'
-          }
-        })
-        expect(result.error).toContain('not found')
-      })
-    })
-
-    describe('delete_cover_letter', () => {
-      it('returns error immediately when cover letter not found', async () => {
-        seedWorkspace('WS1')
-        const result = await executeToolCall({
-          function: {
-            name: 'delete_cover_letter',
-            arguments: '{"workspace_name":"WS1","cover_letter_name":"NoCL"}'
-          }
-        })
-        expect(result.error).toContain('not found')
-      })
-    })
-
-    describe('delete_workspace_context', () => {
-      it('returns error immediately for reserved key', async () => {
-        seedWorkspace('WS1')
-        const result = await executeToolCall({
-          function: {
-            name: 'delete_workspace_context',
-            arguments: '{"workspace_name":"WS1","context_key":"metadata"}'
-          }
-        })
-        expect(result.error).toContain('reserved')
-      })
-
-      it('returns error immediately when context key not found', async () => {
-        seedWorkspace('WS1')
-        const result = await executeToolCall({
-          function: {
-            name: 'delete_workspace_context',
-            arguments: '{"workspace_name":"WS1","context_key":"nokey"}'
-          }
-        })
-        expect(result.error).toContain('not found')
-      })
-    })
-
-    // ── SYSTEM PROMPTS: list_system_prompts handler ───────
-    describe('list_system_prompts', () => {
-      it('returns predefined categories', async () => {
-        useSystemPromptsStore()
-        const result = await executeToolCall({
-          function: { name: 'list_system_prompts', arguments: '' }
-        })
-        expect(result.categories).toBeDefined()
-        expect(Array.isArray(result.categories)).toBe(true)
-        // Should include the 5 predefined categories
-        const keys = result.categories.map((c) => c.key)
-        expect(keys).toContain('jobAnalysis')
-        expect(keys).toContain('matchReport')
-        expect(keys).toContain('companyResearch')
-        expect(keys).toContain('cvGeneration')
-        expect(keys).toContain('coverLetter')
-      })
-
-      it('each category includes key, name, isDefault, and activePromptName', async () => {
-        useSystemPromptsStore()
-        const result = await executeToolCall({
-          function: { name: 'list_system_prompts', arguments: '' }
-        })
-        for (const cat of result.categories) {
-          expect(cat).toHaveProperty('key')
-          expect(cat).toHaveProperty('name')
-          expect(cat).toHaveProperty('isDefault')
-          expect(cat).toHaveProperty('activePromptName')
-        }
-      })
-
-      it('includes custom categories when added', async () => {
-        const store = useSystemPromptsStore()
-        store.addCategory('my-custom', 'My Custom', 'Custom prompt content.')
-        const result = await executeToolCall({
-          function: { name: 'list_system_prompts', arguments: '' }
-        })
-        const keys = result.categories.map((c) => c.key)
-        expect(keys).toContain('my-custom')
-      })
-    })
-
-    // ── SYSTEM PROMPTS: get_system_prompt handler ─────────
-    describe('get_system_prompt', () => {
-      it('returns error when key is missing', async () => {
-        useSystemPromptsStore()
-        const result = await executeToolCall({
-          function: { name: 'get_system_prompt', arguments: '{}' }
-        })
-        expect(result.error).toContain('key is required')
-      })
-
-      it('returns error when category does not exist', async () => {
-        useSystemPromptsStore()
-        const result = await executeToolCall({
-          function: { name: 'get_system_prompt', arguments: '{"key":"nonexistent"}' }
-        })
-        expect(result.error).toContain('not found')
-        expect(result.error).toContain('list_system_prompts')
-      })
-
-      it('returns active prompt content for a valid key', async () => {
-        useSystemPromptsStore()
-        // Predefined categories have a default prompt with content
-        const result = await executeToolCall({
-          function: { name: 'get_system_prompt', arguments: '{"key":"jobAnalysis"}' }
-        })
-        // Should return key, name, isDefault, and content
-        expect(result.key).toBe('jobAnalysis')
-        expect(result.name).toBeDefined()
-        expect(typeof result.content).toBe('string')
-      })
-    })
-
-    // ── SUB_AGENT handler ─────────────────────────────────
-    describe('sub_agent', () => {
-      beforeEach(() => {
-        const settings = useSettingsStore()
-        settings.openRouterKey = 'test-api-key'
-        settings.openRouterModel = 'default-model'
-        useSystemPromptsStore()
-      })
-
-      it('returns error when prompt is missing', async () => {
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({ system_prompt: 'You are helpful' })
-          }
-        })
-        expect(result.error).toContain('prompt is required')
-      })
-
-      it('returns error when system_prompt is missing', async () => {
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({ prompt: 'Do something' })
-          }
-        })
-        expect(result.error).toContain('system_prompt is required')
-      })
-
-      it('returns error when API key is not configured', async () => {
-        const settings = useSettingsStore()
-        settings.openRouterKey = ''
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({ prompt: 'Do something', system_prompt: 'Be helpful' })
-          }
-        })
-        expect(result.error).toContain('API key')
-      })
-
-      it('returns error when workspace_name missing but context_keys provided', async () => {
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Analyze this',
-              system_prompt: 'Be helpful',
-              context_keys: ['job_posting']
-            })
-          }
-        })
-        expect(result.error).toContain('workspace_name is required')
-      })
-
-      it('returns error when workspace_name missing but output_key provided', async () => {
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Generate report',
-              system_prompt: 'Be helpful',
-              output_key: 'report'
-            })
-          }
-        })
-        expect(result.error).toContain('workspace_name is required')
-      })
-
-      it('runs a basic prompt-only sub-agent call and returns response', async () => {
-        streamAndCollect.mockResolvedValueOnce('Sub-agent response text')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Summarize best practices',
-              system_prompt: 'You are a helpful assistant'
-            })
-          }
-        })
-
-        expect(result.success).toBe(true)
-        expect(result.response).toBe('Sub-agent response text')
-        // Verify streamAndCollect was called with correct args
-        expect(streamAndCollect).toHaveBeenCalledWith(
-          'test-api-key',
-          'default-model',
-          expect.arrayContaining([
-            expect.objectContaining({
-              role: 'system',
-              content: expect.stringContaining('You are a helpful assistant')
-            }),
-            expect.objectContaining({ role: 'user', content: 'Summarize best practices' })
-          ]),
-          null
-        )
-      })
-
-      it('resolves system_prompt from category key', async () => {
-        // The default prompt for jobAnalysis exists already
-        useSystemPromptsStore()
-        // The default prompt exists already
-        streamAndCollect.mockResolvedValueOnce('Analysis result')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Analyze this job',
-              system_prompt: 'jobAnalysis'
-            })
-          }
-        })
-
-        expect(result.success).toBe(true)
-        // The system message should contain the prompt content from the store, not the literal 'jobAnalysis' key
-        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
-        const systemMsg = callArgs[2].find((m) => m.role === 'system')
-        expect(systemMsg.content).not.toBe('jobAnalysis')
-      })
-
-      it('uses literal text when system_prompt is not a known category key', async () => {
-        streamAndCollect.mockResolvedValueOnce('Result')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Do it',
-              system_prompt: 'You are a custom expert in XYZ'
-            })
-          }
-        })
-
-        expect(result.success).toBe(true)
-        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
-        const systemMsg = callArgs[2].find((m) => m.role === 'system')
-        expect(systemMsg.content).toContain('You are a custom expert in XYZ')
-      })
-
-      it('uses override model when provided', async () => {
-        streamAndCollect.mockResolvedValueOnce('Result')
-
-        await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Do it',
-              system_prompt: 'Be helpful',
-              model: 'custom/model:online'
-            })
-          }
-        })
-
-        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
-        expect(callArgs[1]).toBe('custom/model:online')
-      })
-
-      it('includes context from context_keys', async () => {
-        seedWorkspace('WS1', {
-          extra: {
-            job_posting: {
-              content: 'Senior developer at Acme Corp',
-              createdAt: Date.now(),
-              lastModified: Date.now()
-            }
-          }
-        })
-        streamAndCollect.mockResolvedValueOnce('Contextual result')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Summarize',
-              system_prompt: 'Be helpful',
-              workspace_name: 'WS1',
-              context_keys: ['job_posting']
-            })
-          }
-        })
-
-        expect(result.success).toBe(true)
-        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
-        const systemMsg = callArgs[2].find((m) => m.role === 'system')
-        expect(systemMsg.content).toContain('job_posting')
-        expect(systemMsg.content).toContain('Senior developer at Acme Corp')
-      })
-
-      it('includes user profile when include_user_profile is true', async () => {
-        const userStore = useUserProfileStore()
-        userStore.professionalExperience = '10 years in software engineering'
-
-        streamAndCollect.mockResolvedValueOnce('Profile-aware result')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Create a summary',
-              system_prompt: 'Be helpful',
-              include_user_profile: true
-            })
-          }
-        })
-
-        expect(result.success).toBe(true)
-        const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
-        const systemMsg = callArgs[2].find((m) => m.role === 'system')
-        expect(systemMsg.content).toContain('User Profile')
-        expect(systemMsg.content).toContain('10 years in software engineering')
-      })
-
-      it('stores output in workspace context when output_key is provided', async () => {
-        seedWorkspace('WS1')
-        streamAndCollect.mockResolvedValueOnce('Generated analysis')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Analyze posting',
-              system_prompt: 'Be helpful',
-              workspace_name: 'WS1',
-              output_key: 'my_analysis'
-            })
-          }
-        })
-
-        expect(result.success).toBe(true)
-        expect(result.output_key).toBe('my_analysis')
-        // Verify context was stored
-        const ws = useWorkspaceStore()
-        expect(ws.workspaces['WS1'].my_analysis).toBeDefined()
-      })
-
-      it('returns error when streamAndCollect throws', async () => {
-        streamAndCollect.mockRejectedValueOnce(new Error('API timeout'))
-
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Do it',
-              system_prompt: 'Be helpful'
-            })
-          }
-        })
-
-        expect(result.error).toContain('Sub-agent failed')
-        expect(result.error).toContain('API timeout')
-      })
-
-      it('returns error when sub-agent produces empty output', async () => {
-        streamAndCollect.mockResolvedValueOnce('   ')
-
-        const result = await executeToolCall({
-          function: {
-            name: 'sub_agent',
-            arguments: JSON.stringify({
-              prompt: 'Do it',
-              system_prompt: 'Be helpful'
-            })
-          }
-        })
-
-        expect(result.error).toContain('no output')
-      })
-
-      it('forwards onProgress callback to streamAndCollect', async () => {
-        streamAndCollect.mockResolvedValueOnce('Streamed result')
+      it('forwards onProgress to streamAndCollect', async () => {
+        streamAndCollect.mockResolvedValueOnce('```text\nResult\n```')
         const onProgress = vi.fn()
-
-        const result = await executeToolCall(
+        await executeToolCall(
           {
             function: {
-              name: 'sub_agent',
-              arguments: JSON.stringify({
-                prompt: 'Do it',
-                system_prompt: 'Be helpful'
-              })
+              name: 'summon_agent',
+              arguments: '{"agentId":"job-analysis","input":"some job"}'
             }
           },
           onProgress
         )
-
-        expect(result.success).toBe(true)
-        // onProgress should have been passed as the 4th arg to streamAndCollect
         const callArgs = streamAndCollect.mock.calls[streamAndCollect.mock.calls.length - 1]
         expect(callArgs[3]).toBe(onProgress)
       })

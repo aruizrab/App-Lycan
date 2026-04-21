@@ -1,14 +1,13 @@
 /**
  * AI Commands — Slash command definitions and processing
  *
- * Each command maps to:
- *   - An external markdown prompt file (loaded at runtime)
- *   - A set of allowed tools
- *   - A user message template
+ * Slash commands inject a guided prompt into the main agent's user message.
+ * The main agent then discovers and invokes the appropriate agent via
+ * list_agents + summon_agent. Commands are sourced from the agents store
+ * (built-in and custom agents that have a slashCommand set).
  */
 
-import { PROMPT_TYPES } from '../stores/systemPrompts'
-import { AI_COMMAND_TYPES } from '../stores/settings'
+import { useAgentsStore } from '../stores/agents'
 
 /**
  * URL detection regex
@@ -17,48 +16,46 @@ const URL_REGEX = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i
 export const isUrl = (input) => URL_REGEX.test(input?.trim() || '')
 
 /**
- * Command definitions.
- * These replace the old AI_COMMANDS object and map cleanly to the new tool system.
+ * Get all available slash commands from the agents store.
+ * Returns an array of objects with { id, name, description } for the command menu.
  */
-export const AI_COMMANDS = {
-    analyze: {
-        id: 'analyze',
-        name: 'Analyze Job',
-        description: 'Analyze a job posting from URL or pasted text',
-        promptFile: 'commands/analyze.md',
-        promptType: PROMPT_TYPES.JOB_ANALYSIS,
-        commandType: AI_COMMAND_TYPES.JOB_ANALYSIS,
-        /** Build user message from raw input */
-        buildUserMessage: (content) =>
-            content
-                ? `Analyze this job offer: ${content}`
-                : 'Analyze the job posting in this workspace.',
-        /** Whether this command needs web search */
-        requiresWebSearch: (input) => isUrl(input)
-    },
-    match: {
-        id: 'match',
-        name: 'Profile Match',
-        description: 'Generate a match report between your profile and the job',
-        promptFile: 'commands/match.md',
-        promptType: PROMPT_TYPES.MATCH_REPORT,
-        commandType: AI_COMMAND_TYPES.MATCH_REPORT,
-        buildUserMessage: () => "Generate a match report for my User Profile and the job offer in this workspace's context.",
-        requiresWebSearch: false
-    },
-    research: {
-        id: 'research',
-        name: 'Research Company',
-        description: 'Research a company for legitimacy and strategic info',
-        promptFile: 'commands/research.md',
-        promptType: PROMPT_TYPES.COMPANY_RESEARCH,
-        commandType: AI_COMMAND_TYPES.COMPANY_RESEARCH,
-        buildUserMessage: (content) =>
-            content
-                ? `Research this company: ${content}`
-                : 'Research the company from the job analysis in this workspace.',
-        requiresWebSearch: true
+export const getAllCommands = () => {
+  try {
+    const agentsStore = useAgentsStore()
+    return agentsStore.getSlashCommandAgents().map((agent) => ({
+      id: agent.slashCommand,
+      name: agent.name,
+      description: agent.description
+    }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Get a command's injection prompt.
+ * The injection prompt is the guided text prepended to the user message.
+ *
+ * @param {string} commandId - The slash command slug (e.g. 'analyze')
+ * @param {string} content - Any additional content the user typed after the command
+ * @returns {string} The user message to send to the main agent
+ */
+export const getInjectionPrompt = (commandId, content) => {
+  try {
+    const agentsStore = useAgentsStore()
+    const agent = agentsStore.getAgentBySlashCommand(commandId)
+    if (!agent) return content || ''
+
+    const basePrompt =
+      agent.slashInjectionPrompt || `Use the ${agent.name} agent to help with this task.`
+
+    if (content && content.trim()) {
+      return `${basePrompt}\n\nAdditional context from the user: ${content.trim()}`
     }
+    return basePrompt
+  } catch {
+    return content || ''
+  }
 }
 
 /**
@@ -67,30 +64,23 @@ export const AI_COMMANDS = {
  * @returns {{ commandId: string|null, content: string }}
  */
 export const parseCommand = (text) => {
-    if (!text.startsWith('/')) {
-        return { commandId: null, content: text }
-    }
-
-    const parts = text.split(' ')
-    const potentialCmd = parts[0].slice(1).toLowerCase()
-    const cmd = AI_COMMANDS[potentialCmd]
-
-    if (cmd) {
-        return {
-            commandId: cmd.id,
-            content: parts.slice(1).join(' ').trim()
-        }
-    }
-
+  if (!text.startsWith('/')) {
     return { commandId: null, content: text }
+  }
+
+  const parts = text.split(' ')
+  const slug = parts[0].slice(1).toLowerCase()
+  const content = parts.slice(1).join(' ').trim()
+
+  try {
+    const agentsStore = useAgentsStore()
+    const agent = agentsStore.getAgentBySlashCommand(slug)
+    if (agent) {
+      return { commandId: slug, content }
+    }
+  } catch {
+    // agents store not ready yet
+  }
+
+  return { commandId: null, content: text }
 }
-
-/**
- * Get a command definition by id.
- */
-export const getCommand = (commandId) => AI_COMMANDS[commandId] || null
-
-/**
- * Get all available commands (as array).
- */
-export const getAllCommands = () => Object.values(AI_COMMANDS)
