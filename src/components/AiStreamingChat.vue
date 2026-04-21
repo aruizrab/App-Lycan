@@ -466,13 +466,13 @@ const executeAiRequest = async (commandId = null) => {
         }
 
         if (roundData.isLastRound) {
-          // Merge reasoning from all intermediate rounds with the final round's reasoning
-          const mergedReasoning = [accumulatedReasoning, roundData.reasoning]
-            .filter(Boolean)
-            .join('\n\n')
+          const mergedReasoning =
+            accumulatedReasoning || roundData.reasoning
+              ? [accumulatedReasoning, roundData.reasoning].filter(Boolean).join('\n\n')
+              : null
           chatStore.finishStreaming({
             content: roundData.content,
-            reasoning: mergedReasoning || null,
+            reasoning: mergedReasoning,
             toolCalls: accumulatedToolCalls.length > 0 ? accumulatedToolCalls : null,
             metadata: {
               model: finalModel,
@@ -1326,6 +1326,7 @@ const toggleModelDropdown = () => {
           <div v-if="currentBranches.length > 0" class="relative ml-1">
             <button
               @click="showBranchDropdown = !showBranchDropdown"
+              aria-label="View conversation branches"
               class="flex items-center gap-1 px-1.5 py-0.5 rounded border border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
               :title="`${currentBranches.length} saved ${currentBranches.length === 1 ? 'branch' : 'branches'}`"
             >
